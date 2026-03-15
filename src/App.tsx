@@ -3,8 +3,15 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import Index from "./pages/Index.tsx";
-import NotFound from "./pages/NotFound.tsx";
+import Index from "./pages/Index";
+import NotFound from "./pages/NotFound";
+import ServiceOrders from "./pages/ServiceOrders";
+import Vehicles from "./pages/Vehicles";
+import InventoryPage from "./pages/Inventory";
+import Customers from "./pages/Customers";
+import Mechanics from "./pages/Mechanics";
+import POS from "./pages/POS";
+import Analytics from "./pages/Analytics";
 
 const queryClient = new QueryClient();
 
@@ -16,7 +23,13 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          <Route path="/orders" element={<ServiceOrders />} />
+          <Route path="/vehicles" element={<Vehicles />} />
+          <Route path="/inventory" element={<InventoryPage />} />
+          <Route path="/customers" element={<Customers />} />
+          <Route path="/mechanics" element={<Mechanics />} />
+          <Route path="/pos" element={<POS />} />
+          <Route path="/analytics" element={<Analytics />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
