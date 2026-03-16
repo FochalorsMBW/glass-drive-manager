@@ -9,31 +9,37 @@ import ServiceOrders from "./pages/ServiceOrders";
 import Vehicles from "./pages/Vehicles";
 import InventoryPage from "./pages/Inventory";
 import Customers from "./pages/Customers";
+import Settings from "./pages/Settings";
 import Mechanics from "./pages/Mechanics";
 import POS from "./pages/POS";
 import Analytics from "./pages/Analytics";
+
+import { ThemeProvider } from "next-themes";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/orders" element={<ServiceOrders />} />
-          <Route path="/vehicles" element={<Vehicles />} />
-          <Route path="/inventory" element={<InventoryPage />} />
-          <Route path="/customers" element={<Customers />} />
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/orders" element={<ServiceOrders />} />
+            <Route path="/vehicles" element={<Vehicles />} />
+            <Route path="/inventory" element={<InventoryPage />} />
+            <Route path="/customers" element={<Customers />} />
+          <Route path="/settings" element={<Settings />} />
           <Route path="/mechanics" element={<Mechanics />} />
-          <Route path="/pos" element={<POS />} />
-          <Route path="/analytics" element={<Analytics />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
+            <Route path="/pos" element={<POS />} />
+            <Route path="/analytics" element={<Analytics />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 

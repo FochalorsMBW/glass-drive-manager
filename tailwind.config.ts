@@ -12,7 +12,7 @@ export default {
     },
     extend: {
       fontFamily: {
-        display: ["Instrument Serif", "serif"],
+        display: ["-apple-system", "SF Pro Display", "Inter", "system-ui", "sans-serif"],
         mono: ["Geist Mono", "monospace"],
       },
       colors: {

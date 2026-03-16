@@ -65,10 +65,10 @@ export const customers: Customer[] = [
 ];
 
 export const mechanics: Mechanic[] = [
-  { id: "m1", name: "Alex Wibowo", avatar: "AW", specialization: "Engine", activeJobs: 2, completedJobs: 847, rating: 4.9 },
-  { id: "m2", name: "Rudi Hartono", avatar: "RH", specialization: "Brakes & Suspension", activeJobs: 1, completedJobs: 623, rating: 4.7 },
-  { id: "m3", name: "Fajar Nugroho", avatar: "FN", specialization: "Electrical", activeJobs: 3, completedJobs: 512, rating: 4.8 },
-  { id: "m4", name: "Eko Prasetyo", avatar: "EP", specialization: "Transmission", activeJobs: 0, completedJobs: 391, rating: 4.6 },
+  { id: "m1", name: "Alex Wibowo", avatar: "AW", specialization: "Mesin", activeJobs: 2, completedJobs: 847, rating: 4.9 },
+  { id: "m2", name: "Rudi Hartono", avatar: "RH", specialization: "Rem & Suspensi", activeJobs: 1, completedJobs: 623, rating: 4.7 },
+  { id: "m3", name: "Fajar Nugroho", avatar: "FN", specialization: "Kelistrikan", activeJobs: 3, completedJobs: 512, rating: 4.8 },
+  { id: "m4", name: "Eko Prasetyo", avatar: "EP", specialization: "Transmisi", activeJobs: 0, completedJobs: 391, rating: 4.6 },
 ];
 
 export const vehicles: Vehicle[] = [
@@ -80,57 +80,57 @@ export const vehicles: Vehicle[] = [
 ];
 
 export const inventory: InventoryItem[] = [
-  { id: "i1", sku: "OIL-5W30-SYN", name: "Synthetic Oil 5W-30", category: "Fluids", stock: 45, minThreshold: 10, price: 85000, supplier: "Shell Indonesia" },
-  { id: "i2", sku: "BRK-PAD-FRT", name: "Front Brake Pad Set", category: "Brakes", stock: 8, minThreshold: 5, price: 350000, supplier: "Brembo Asia" },
-  { id: "i3", sku: "FLT-OIL-001", name: "Oil Filter Universal", category: "Filters", stock: 32, minThreshold: 15, price: 45000, supplier: "Denso Indonesia" },
-  { id: "i4", sku: "SPK-PLG-IR", name: "Iridium Spark Plug", category: "Ignition", stock: 3, minThreshold: 8, price: 125000, supplier: "NGK Japan" },
-  { id: "i5", sku: "CLN-CHN-500", name: "Chain Cleaner 500ml", category: "Maintenance", stock: 22, minThreshold: 10, price: 65000, supplier: "Motul" },
-  { id: "i6", sku: "TIR-TUB-17", name: 'Inner Tube 17"', category: "Tires", stock: 14, minThreshold: 6, price: 55000, supplier: "IRC Indonesia" },
-  { id: "i7", sku: "BLT-TMG-V", name: "V-Belt Timing", category: "Drive", stock: 6, minThreshold: 4, price: 280000, supplier: "Gates Asia" },
-  { id: "i8", sku: "CLD-RAD-1L", name: "Radiator Coolant 1L", category: "Fluids", stock: 18, minThreshold: 8, price: 72000, supplier: "Prestone" },
+  { id: "i1", sku: "OIL-5W30-SYN", name: "Oli Sintetis 5W-30", category: "Cairan", stock: 45, minThreshold: 10, price: 85000, supplier: "Shell Indonesia" },
+  { id: "i2", sku: "BRK-PAD-FRT", name: "Set Kanvas Rem Depan", category: "Rem", stock: 8, minThreshold: 5, price: 350000, supplier: "Brembo Asia" },
+  { id: "i3", sku: "FLT-OIL-001", name: "Filter Oli Universal", category: "Filter", stock: 32, minThreshold: 15, price: 45000, supplier: "Denso Indonesia" },
+  { id: "i4", sku: "SPK-PLG-IR", name: "Busi Iridium", category: "Pengapian", stock: 3, minThreshold: 8, price: 125000, supplier: "NGK Japan" },
+  { id: "i5", sku: "CLN-CHN-500", name: "Pembersih Rantai 500ml", category: "Perawatan", stock: 22, minThreshold: 10, price: 65000, supplier: "Motul" },
+  { id: "i6", sku: "TIR-TUB-17", name: 'Ban Dalam 17"', category: "Ban", stock: 14, minThreshold: 6, price: 55000, supplier: "IRC Indonesia" },
+  { id: "i7", sku: "BLT-TMG-V", name: "V-Belt Timing", category: "Penggerak", stock: 6, minThreshold: 4, price: 280000, supplier: "Gates Asia" },
+  { id: "i8", sku: "CLD-RAD-1L", name: "Air Radiator 1L", category: "Cairan", stock: 18, minThreshold: 8, price: 72000, supplier: "Prestone" },
 ];
 
 export const serviceOrders: ServiceOrder[] = [
   {
     id: "SO-001", vehicleId: "v1", vehicle: vehicles[0], customer: customers[0], mechanicId: "m1", mechanic: mechanics[0],
-    status: "in_progress", description: "Full engine service + oil change",
-    items: [{ name: "Synthetic Oil 5W-30", qty: 4, price: 85000 }, { name: "Oil Filter Universal", qty: 1, price: 45000 }],
-    laborCost: 200000, totalAmount: 585000, createdAt: "2026-03-15T08:30:00", notes: "Customer requested premium oil"
+    status: "in_progress", description: "Servis mesin lengkap + ganti oli",
+    items: [{ name: "Oli Sintetis 5W-30", qty: 4, price: 85000 }, { name: "Filter Oli Universal", qty: 1, price: 45000 }],
+    laborCost: 200000, totalAmount: 585000, createdAt: "2026-03-15T08:30:00", notes: "Pelanggan meminta oli premium"
   },
   {
     id: "SO-002", vehicleId: "v2", vehicle: vehicles[1], customer: customers[1], mechanicId: "m2", mechanic: mechanics[1],
-    status: "queued", description: "Brake pad replacement — front",
-    items: [{ name: "Front Brake Pad Set", qty: 1, price: 350000 }],
+    status: "queued", description: "Ganti kanvas rem — depan",
+    items: [{ name: "Set Kanvas Rem Depan", qty: 1, price: 350000 }],
     laborCost: 150000, totalAmount: 500000, createdAt: "2026-03-15T09:15:00", notes: ""
   },
   {
     id: "SO-003", vehicleId: "v3", vehicle: vehicles[2], customer: customers[2], mechanicId: "m3", mechanic: mechanics[2],
-    status: "completed", description: "Electrical diagnosis + spark plug replacement",
-    items: [{ name: "Iridium Spark Plug", qty: 2, price: 125000 }],
-    laborCost: 175000, totalAmount: 425000, createdAt: "2026-03-15T07:00:00", notes: "Ignition coil checked — OK"
+    status: "completed", description: "Diagnosis kelistrikan + ganti busi",
+    items: [{ name: "Busi Iridium", qty: 2, price: 125000 }],
+    laborCost: 175000, totalAmount: 425000, createdAt: "2026-03-15T07:00:00", notes: "Koil pengapian diperiksa — OK"
   },
   {
     id: "SO-004", vehicleId: "v5", vehicle: vehicles[4], customer: customers[4], mechanicId: "m1", mechanic: mechanics[0],
-    status: "paid", description: "Chain cleaning & lubrication",
-    items: [{ name: "Chain Cleaner 500ml", qty: 1, price: 65000 }],
+    status: "paid", description: "Pembersihan & pelumasan rantai",
+    items: [{ name: "Pembersih Rantai 500ml", qty: 1, price: 65000 }],
     laborCost: 100000, totalAmount: 165000, createdAt: "2026-03-14T14:00:00", notes: ""
   },
   {
     id: "SO-005", vehicleId: "v4", vehicle: vehicles[3], customer: customers[3], mechanicId: "m4", mechanic: mechanics[3],
-    status: "queued", description: "Timing belt replacement",
+    status: "queued", description: "Ganti timing belt",
     items: [{ name: "V-Belt Timing", qty: 1, price: 280000 }],
-    laborCost: 350000, totalAmount: 630000, createdAt: "2026-03-15T10:00:00", notes: "Check water pump during service"
+    laborCost: 350000, totalAmount: 630000, createdAt: "2026-03-15T10:00:00", notes: "Periksa pompa air saat servis"
   },
 ];
 
 export const revenueData = [
-  { date: "Mon", revenue: 2850000 },
-  { date: "Tue", revenue: 3120000 },
-  { date: "Wed", revenue: 2640000 },
-  { date: "Thu", revenue: 4100000 },
-  { date: "Fri", revenue: 3780000 },
-  { date: "Sat", revenue: 5200000 },
-  { date: "Sun", revenue: 1900000 },
+  { date: "Sen", revenue: 2850000 },
+  { date: "Sel", revenue: 3120000 },
+  { date: "Rab", revenue: 2640000 },
+  { date: "Kam", revenue: 4100000 },
+  { date: "Jum", revenue: 3780000 },
+  { date: "Sab", revenue: 5200000 },
+  { date: "Min", revenue: 1900000 },
 ];
 
 export const monthlyRevenue = [

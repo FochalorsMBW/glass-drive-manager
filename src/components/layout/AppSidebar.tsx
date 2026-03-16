@@ -1,43 +1,75 @@
 import { NavLink, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { useAppStore } from "@/hooks/useAppStore";
 import {
   LayoutDashboard, Wrench, Car, Package, Users, UserCog,
   ShoppingCart, BarChart3, Settings, ChevronLeft
 } from "lucide-react";
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { ThemeToggle } from "../ui/ThemeToggle";
 
 const navItems = [
-  { to: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/orders", icon: Wrench, label: "Service Orders" },
-  { to: "/vehicles", icon: Car, label: "Vehicles" },
-  { to: "/inventory", icon: Package, label: "Inventory" },
-  { to: "/customers", icon: Users, label: "Customers" },
-  { to: "/mechanics", icon: UserCog, label: "Mechanics" },
-  { to: "/pos", icon: ShoppingCart, label: "Cashier POS" },
-  { to: "/analytics", icon: BarChart3, label: "Analytics" },
+  { to: "/", icon: LayoutDashboard, label: "Beranda" },
+  { to: "/orders", icon: Wrench, label: "Pesanan Layanan" },
+  { to: "/vehicles", icon: Car, label: "Kendaraan" },
+  { to: "/inventory", icon: Package, label: "Inventaris" },
+  { to: "/customers", icon: Users, label: "Pelanggan" },
+  { to: "/mechanics", icon: UserCog, label: "Mekanik" },
+  { to: "/pos", icon: ShoppingCart, label: "Kasir POS" },
+  { to: "/analytics", icon: BarChart3, label: "Analitik" },
+  { to: "/settings", icon: Settings, label: "Pengaturan" },
 ];
 
-export const AppSidebar = () => {
+interface AppSidebarProps {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  className?: string;
+}
+
+export const AppSidebar = ({ open, onOpenChange, className }: AppSidebarProps) => {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
+  const { settings } = useAppStore(); // Added useAppStore hook
 
-  return (
+  const sidebarContent = (
     <motion.aside
+      initial={false}
       animate={{ width: collapsed ? 72 : 260 }}
       transition={{ duration: 0.3, ease: [0.32, 0.72, 0, 1] }}
-      className="fixed left-0 top-0 h-screen z-50 glass border-r border-border/50 flex flex-col"
+      className={cn(
+        "fixed left-0 top-0 h-screen z-50 glass border-r border-border/50 flex flex-col",
+        "transition-transform lg:translate-x-0",
+        !open && "-translate-x-full lg:translate-x-0",
+        className
+      )}
       style={{ borderRadius: 0 }}
     >
-      <div className="flex items-center gap-3 p-4 border-b border-border/30">
-        <div className="w-9 h-9 rounded-glass-inner bg-primary flex items-center justify-center shrink-0">
-          <Wrench className="w-5 h-5 text-primary-foreground" />
-        </div>
-        <AnimatePresence>
-          {!collapsed && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="overflow-hidden">
-              <h1 className="font-display text-xl tracking-tight">Velocity OS</h1>
-              <p className="text-[11px] text-muted-foreground">Workshop Management</p>
+      <div className="flex items-center gap-3 p-4 border-b border-border/30 overflow-hidden h-[72px]">
+        <AnimatePresence mode="wait">
+          {!collapsed ? (
+            <motion.div
+              key="full-logo"
+              initial={{ opacity: 0, x: -10 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -10 }}
+              className="flex items-center gap-3" // Added gap-3 for spacing
+            >
+              {/* Dynamic full logo/branding */}
+              <div className="flex flex-col">
+                <img src="/IconUB.png" alt={settings.name} className="h-7 w-auto object-contain self-start" />
+                <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mt-0.5">Management System</p>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="collapsed-logo"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              className="w-9 h-9 flex items-center justify-center mx-auto"
+            >
+              <img src="/logo.png" alt="V" className="w-full h-full object-contain" />
             </motion.div>
           )}
         </AnimatePresence>
@@ -50,14 +82,21 @@ export const AppSidebar = () => {
             <NavLink
               key={to}
               to={to}
+              onClick={() => onOpenChange?.(false)}
               className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-glass-inner text-sm font-medium transition-snappy",
+                "group relative flex items-center gap-3 px-3 py-2.5 rounded-glass-inner text-sm font-medium transition-snappy",
                 active
-                  ? "bg-primary/10 text-primary"
+                  ? "bg-primary/10 text-primary shadow-[inset_0_0_0_1px_rgba(var(--primary),0.1)]"
                   : "text-muted-foreground hover:bg-accent hover:text-foreground"
               )}
             >
-              <Icon className="w-[18px] h-[18px] shrink-0" />
+              {active && (
+                <motion.div
+                  layoutId="activeBar"
+                  className="absolute left-0 w-1 h-5 bg-primary rounded-full"
+                />
+              )}
+              <Icon className={cn("w-[18px] h-[18px] shrink-0 transition-transform group-hover:scale-110", active && "text-primary")} />
               <AnimatePresence>
                 {!collapsed && (
                   <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -70,19 +109,40 @@ export const AppSidebar = () => {
         })}
       </nav>
 
-      <div className="p-3 border-t border-border/30">
+      <div className="p-3 border-t border-border/30 space-y-2">
+        <div className={cn("flex items-center px-3 py-2", collapsed ? "justify-center" : "justify-between")}>
+          {!collapsed && <span className="text-xs font-medium text-muted-foreground">Mode</span>}
+          <ThemeToggle />
+        </div>
         <button
           onClick={() => setCollapsed(!collapsed)}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-glass-inner text-sm text-muted-foreground hover:bg-accent hover:text-foreground w-full transition-snappy"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-glass-inner text-sm text-muted-foreground hover:bg-accent hover:text-foreground w-full transition-snappy lg:flex hidden"
         >
           <ChevronLeft className={cn("w-[18px] h-[18px] shrink-0 transition-transform", collapsed && "rotate-180")} />
           <AnimatePresence>
             {!collapsed && (
-              <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>Collapse</motion.span>
+              <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>Tutup</motion.span>
             )}
           </AnimatePresence>
         </button>
       </div>
     </motion.aside>
+  );
+
+  return (
+    <>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => onOpenChange?.(false)}
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 lg:hidden"
+          />
+        )}
+      </AnimatePresence>
+      {sidebarContent}
+    </>
   );
 };
