@@ -1,7 +1,7 @@
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import { Sun, Moon } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 
 export const ThemeToggle = () => {
   const { theme, setTheme } = useTheme();
@@ -18,7 +18,7 @@ export const ThemeToggle = () => {
 
   const isDark = theme === "dark";
 
-  const toggleTheme = () => {
+  const toggleTheme = (e: React.MouseEvent) => {
     const nextTheme = isDark ? "light" : "dark";
     
     // Check for View Transitions API support
@@ -26,6 +26,12 @@ export const ThemeToggle = () => {
       setTheme(nextTheme);
       return;
     }
+
+    // Calculate position for circular expansion
+    const x = e.clientX;
+    const y = e.clientY;
+    document.documentElement.style.setProperty("--transition-x", `${x}px`);
+    document.documentElement.style.setProperty("--transition-y", `${y}px`);
 
     // Mark direction for CSS
     if (isDark) {
@@ -38,35 +44,35 @@ export const ThemeToggle = () => {
       setTheme(nextTheme);
     });
 
-    // Cleanup after transition
     transition.finished.finally(() => {
-      // Small delay to ensure pseudo-elements are cleared before selectors change
+      // Small delay to ensure pseudo-elements are cleared
       setTimeout(() => {
         delete document.documentElement.dataset.themeTransition;
-      }, 500);
+      }, 300);
     });
   };
 
   return (
-    <div 
-      className="flex items-center gap-2 p-1.5 rounded-full bg-secondary/50 border border-border/50 cursor-pointer relative w-[72px] h-9"
-      onClick={toggleTheme}
+    <button 
+      onClick={(e) => toggleTheme(e)}
+      className="p-2 rounded-xl hover:bg-accent transition-all duration-300 flex items-center justify-center shrink-0 border border-border/30 bg-secondary/30 w-10 h-10 overflow-hidden relative group"
+      title={isDark ? "Ganti ke Mode Terang" : "Ganti ke Mode Gelap"}
     >
-      <motion.div
-        className="absolute top-1 bottom-1 w-8 rounded-full bg-background shadow-sm border border-border/30 z-10"
-        initial={false}
-        animate={{
-          left: isDark ? "36px" : "4px",
-        }}
-        transition={{ type: "spring", stiffness: 500, damping: 30 }}
-      />
-      
-      <div className="flex-1 flex justify-center items-center z-20">
-        <Sun className={`w-3.5 h-3.5 transition-colors ${!isDark ? "text-primary" : "text-muted-foreground"}`} />
-      </div>
-      <div className="flex-1 flex justify-center items-center z-20">
-        <Moon className={`w-3.5 h-3.5 transition-colors ${isDark ? "text-primary" : "text-muted-foreground"}`} />
-      </div>
-    </div>
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={theme}
+          initial={{ y: 20, opacity: 0, rotate: -45 }}
+          animate={{ y: 0, opacity: 1, rotate: 0 }}
+          exit={{ y: -20, opacity: 0, rotate: 45 }}
+          transition={{ duration: 0.2, ease: "easeInOut" }}
+        >
+          {isDark ? (
+            <Sun className="w-[18px] h-[18px] text-warning" />
+          ) : (
+            <Moon className="w-[18px] h-[18px] text-primary" />
+          )}
+        </motion.div>
+      </AnimatePresence>
+    </button>
   );
 };

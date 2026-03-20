@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import { toast } from "sonner";
 
 const SettingsPage = () => {
-  const { settings, updateSettings } = useAppStore();
+  const { settings, updateSettings, resetData } = useAppStore();
 
   const handleSave = () => {
     toast.success("Pengaturan bengkel berhasil diperbarui!");
@@ -171,6 +171,21 @@ const SettingsPage = () => {
                 </div>
               </div>
 
+              <div>
+                <label className="text-sm text-muted-foreground mb-1.5 block">API Key / Token</label>
+                <div className="relative">
+                  <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <input 
+                    type="password"
+                    placeholder="Masukkan token API..."
+                    value={settings.waApiKey || ""} 
+                    onChange={e => updateSettings({ waApiKey: e.target.value })}
+                    className="w-full pl-10 pr-3 py-2 rounded-lg bg-secondary/50 border border-border/50 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/20" 
+                  />
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-2 italic px-1">Token ini digunakan untuk otorisasi pengiriman pesan ke server gateway.</p>
+              </div>
+
               <div className="p-4 rounded-xl bg-success/5 border border-success/10">
                 <p className="text-xs text-secondary-foreground leading-relaxed">
                   <strong>Info:</strong> Kosongkan field di atas jika Anda ingin tetap menggunakan <strong>WhatsApp Web (wa.me)</strong> secara manual. Jika diisi, sistem akan mencoba mengirim pesan di latar belakang.
@@ -181,13 +196,26 @@ const SettingsPage = () => {
         </GlassCard>
 
         <div className="flex justify-end">
-          <motion.button
-            whileTap={{ scale: 0.98 }}
-            onClick={handleSave}
-            className="flex items-center gap-2 px-8 py-3 rounded-xl bg-primary text-primary-foreground font-bold hover:opacity-90 transition-snappy shadow-lg shadow-primary/20"
-          >
-            <Save className="w-5 h-5" /> Simpan Perubahan
-          </motion.button>
+          <div className="flex flex-col md:flex-row gap-4 pt-6 border-t border-border/30">
+            <motion.button
+              whileTap={{ scale: 0.98 }}
+              onClick={handleSave}
+              className="flex-1 flex items-center justify-center gap-2 px-8 py-3 rounded-xl bg-primary text-primary-foreground font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-all"
+            >
+              <Save className="w-5 h-5" /> Simpan Perubahan
+            </motion.button>
+            <button
+              onClick={() => {
+                if (window.confirm("Apakah Anda yakin ingin menghapus semua data transaksi dan kembali ke pengaturan awal? Tindakan ini tidak dapat dibatalkan.")) {
+                  resetData();
+                  toast.success("Data berhasil direset ke pengaturan awal.");
+                }
+              }}
+              className="px-8 py-3 rounded-xl bg-destructive/10 text-destructive font-bold border border-destructive/20 hover:bg-destructive/20 transition-all"
+            >
+              Reset Semua Data
+            </button>
+          </div>
         </div>
       </div>
     </AppLayout>

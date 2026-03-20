@@ -28,11 +28,12 @@ const navItems = [
 interface AppSidebarProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  collapsed: boolean;
+  onCollapsedChange: (collapsed: boolean) => void;
   className?: string;
 }
 
-export const AppSidebar = ({ open, onOpenChange, className }: AppSidebarProps) => {
-  const [collapsed, setCollapsed] = useState(false);
+export const AppSidebar = ({ open, onOpenChange, collapsed, onCollapsedChange, className }: AppSidebarProps) => {
   const location = useLocation();
   const { settings } = useAppStore();
   
@@ -121,12 +122,12 @@ export const AppSidebar = ({ open, onOpenChange, className }: AppSidebarProps) =
       </nav>
 
       <div className="p-3 border-t border-border/30 space-y-2">
-        <div className={cn("flex items-center px-3 py-2", collapsed ? "justify-center" : "justify-between")}>
-          {!collapsed && <span className="text-xs font-medium text-muted-foreground">Mode</span>}
+        <div className={cn("flex items-center", collapsed ? "justify-center" : "justify-between px-3 py-1")}>
+          {!collapsed && <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground/60">Mode</span>}
           <ThemeToggle />
         </div>
         <button
-          onClick={() => setCollapsed(!collapsed)}
+          onClick={() => onCollapsedChange(!collapsed)}
           className="flex items-center gap-3 px-3 py-2.5 rounded-glass-inner text-sm text-muted-foreground hover:bg-accent hover:text-foreground w-full transition-snappy lg:flex hidden"
         >
           <ChevronLeft className={cn("w-[18px] h-[18px] shrink-0 transition-transform", collapsed && "rotate-180")} />

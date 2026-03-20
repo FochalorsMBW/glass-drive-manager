@@ -1,9 +1,10 @@
+import React, { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { useAppStore } from "@/hooks/useAppStore";
-import { Star, Plus, X, Calendar, AlertCircle } from "lucide-react";
+import { Star, Plus, X, Calendar, AlertCircle, Search } from "lucide-react";
+// ... (rest of imports)
 import { motion } from "framer-motion";
-import { useState } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -227,32 +228,51 @@ const CustomersPage = () => {
   const { customers, vehicles } = useAppStore();
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [displayLimit, setDisplayLimit] = useState(12);
+
+  // --- Optimization: Memoized Filtering & Search ---
+  const filteredCustomers = React.useMemo(() => {
+    return customers.filter(c => 
+      c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      c.phone.includes(searchQuery) ||
+      c.email?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [customers, searchQuery]);
+
+  const displayedCustomers = filteredCustomers.slice(0, displayLimit);
+  const hasMore = filteredCustomers.length > displayLimit;
 
   return (
     <AppLayout>
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
         <div>
           <h1 className="text-4xl font-display tracking-tight">Pelanggan</h1>
-          <p className="text-muted-foreground mt-1">{customers.length} pelanggan terdaftar</p>
+          <p className="text-muted-foreground mt-1">{filteredCustomers.length} pelanggan ditemukan</p>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="hidden md:flex items-center gap-2 px-5 py-2.5 rounded-glass-inner bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-snappy"
-        >
-          <Plus className="w-4 h-4" /> Tambah Pelanggan
-        </button>
+        
+        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
+          <div className="relative group">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+            <input 
+              type="text" 
+              placeholder="Cari nama, telp, email..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full md:w-64 pl-10 pr-4 py-2.5 rounded-xl bg-secondary/50 border border-border/50 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+            />
+          </div>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:opacity-90 transition-snappy shadow-lg shadow-primary/20"
+          >
+            <Plus className="w-4 h-4" /> Tambah 
+          </button>
+        </div>
       </div>
 
-      {/* FAB Mobile */}
-      <button
-        onClick={() => setShowAddModal(true)}
-        className="md:hidden fixed bottom-6 right-6 w-14 h-14 rounded-2xl bg-primary text-primary-foreground shadow-2xl shadow-primary/40 flex items-center justify-center z-50 hover:scale-110 active:scale-95 transition-all outline-none ring-4 ring-background"
-      >
-        <Plus className="w-7 h-7" />
-      </button>
-
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {customers.map((c, i) => {
+        {displayedCustomers.map((c, i) => {
           const ownedVehicles = vehicles.filter(v => v.customerId === c.id);
           return (
             <GlassCard key={c.id} className="group hover:scale-[1.02] transition-all cursor-pointer" onClick={() => setSelectedCustomer(c)}>
@@ -314,6 +334,17 @@ const CustomersPage = () => {
           );
         })}
       </div>
+
+      {hasMore && (
+        <div className="mt-12 flex justify-center pb-12">
+          <button 
+            onClick={() => setDisplayLimit(prev => prev + 12)}
+            className="px-8 py-3 rounded-2xl bg-secondary/80 text-foreground font-bold hover:bg-secondary transition-all border border-border/30 hover:border-primary/20 shadow-lg"
+          >
+            Tampilkan Lebih Banyak
+          </button>
+        </div>
+      )}
 
       <AddCustomerModal open={showAddModal} onClose={() => setShowAddModal(false)} />
       <CustomerDetailsModal 

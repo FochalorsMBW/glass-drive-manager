@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 
 export const AppLayout = ({ children }: { children: ReactNode }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const { searchQuery, setSearchQuery, customers, vehicles, serviceOrders, inventory, settings, notifications } = useAppStore();
   const [showResults, setShowResults] = useState(false);
   const navigate = useNavigate();
@@ -47,9 +48,17 @@ export const AppLayout = ({ children }: { children: ReactNode }) => {
 
   return (
     <div className="min-h-screen bg-background">
-      <AppSidebar open={isSidebarOpen} onOpenChange={setIsSidebarOpen} />
+      <AppSidebar 
+        open={isSidebarOpen} 
+        onOpenChange={setIsSidebarOpen} 
+        collapsed={isSidebarCollapsed}
+        onCollapsedChange={setIsSidebarCollapsed}
+      />
       
-      <div className="lg:ml-[260px] transition-all duration-300">
+      <div className={cn(
+        "transition-all duration-300",
+        isSidebarCollapsed ? "lg:ml-[72px]" : "lg:ml-[260px]"
+      )}>
         <header className="sticky top-0 z-40 glass border-b border-border/30 px-3 lg:px-8 py-3 lg:py-4 flex items-center justify-between gap-3 lg:gap-0" style={{ borderRadius: 0 }}>
           <div className="flex items-center gap-2 lg:gap-4 flex-1 min-w-0">
             <button 

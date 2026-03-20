@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { motion, useSpring, useTransform } from "framer-motion";
 
 interface AnimatedNumberProps {
@@ -9,11 +9,18 @@ interface AnimatedNumberProps {
   className?: string;
 }
 
-export const AnimatedNumber = ({ value, prefix = "", suffix = "", decimals = 0, className }: AnimatedNumberProps) => {
+export const AnimatedNumber = React.memo(({ value, prefix = "", suffix = "", decimals = 0, className }: AnimatedNumberProps) => {
   const spring = useSpring(0, { stiffness: 60, damping: 20 });
-  const display = useTransform(spring, (v) => `${prefix}${v.toFixed(decimals)}${suffix}`);
+  
+  // Use Intl.NumberFormat for better localization (thousands separators)
+  const formatter = new Intl.NumberFormat('id-ID', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals
+  });
+
+  const display = useTransform(spring, (v) => `${prefix}${formatter.format(v)}${suffix}`);
   const ref = useRef<HTMLSpanElement>(null);
-  const [text, setText] = useState(`${prefix}0${suffix}`);
+  const [text, setText] = useState(`${prefix}${formatter.format(0)}${suffix}`);
 
   useEffect(() => {
     spring.set(value);
@@ -22,4 +29,5 @@ export const AnimatedNumber = ({ value, prefix = "", suffix = "", decimals = 0, 
   }, [value, spring, display]);
 
   return <motion.span ref={ref} className={className}>{text}</motion.span>;
-};
+});
+

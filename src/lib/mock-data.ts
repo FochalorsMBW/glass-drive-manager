@@ -10,6 +10,7 @@ export interface WorkshopSettings {
   workshopLogo?: string;
   invoiceTerms?: string;
   waGatewayUrl?: string;
+  waApiKey?: string;
 }
 
 export interface Payout {

@@ -4,7 +4,7 @@ import { useAppStore } from "@/hooks/useAppStore";
 import { formatCurrency } from "@/lib/mock-data";
 import { Package, AlertTriangle, Plus, X, History, ArrowDown, ArrowUp } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -193,20 +193,46 @@ const InventoryPage = () => {
   const { inventory, inventoryLogs } = useAppStore();
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedRestockItem, setSelectedRestockItem] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [displayLimit, setDisplayLimit] = useState(12);
+
+  const filteredInventory = useMemo(() => {
+    return inventory.filter(item => 
+      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.category.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [inventory, searchQuery]);
+
+  const displayedInventory = filteredInventory.slice(0, displayLimit);
+  const hasMore = filteredInventory.length > displayLimit;
 
   return (
     <AppLayout>
-      <div className="flex items-end justify-between mb-8">
+      <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
         <div>
           <h1 className="text-4xl font-display tracking-tight">Inventaris</h1>
-          <p className="text-muted-foreground mt-1">{inventory.length} suku cadang dalam katalog</p>
+          <p className="text-muted-foreground mt-1">{filteredInventory.length} suku cadang ditemukan</p>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="hidden md:flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-snappy"
-        >
-          <Plus className="w-4 h-4" /> Tambah Suku Cadang
-        </button>
+        
+        <div className="flex flex-col md:flex-row items-center gap-4">
+          <div className="relative w-full md:w-64">
+            <Package className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <input 
+              type="text"
+              placeholder="Cari suku cadang/SKU..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 rounded-xl bg-secondary/50 border border-border/50 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+            />
+          </div>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="hidden md:flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-snappy"
+          >
+            <Plus className="w-4 h-4" /> Tambah Suku Cadang
+          </button>
+        </div>
       </div>
 
       {/* FAB Mobile */}
@@ -220,7 +246,7 @@ const InventoryPage = () => {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <div className="lg:col-span-3">
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {inventory.map((item, i) => {
+            {displayedInventory.map((item, i) => {
               const isLow = item.stock <= item.minThreshold;
               return (
                 <GlassCard key={item.id} className={cn(
@@ -266,6 +292,17 @@ const InventoryPage = () => {
               );
             })}
           </div>
+
+          {hasMore && (
+            <div className="mt-8 flex justify-center">
+              <button 
+                onClick={() => setDisplayLimit(prev => prev + 12)}
+                className="px-8 py-2.5 rounded-xl bg-secondary text-foreground text-xs font-bold uppercase tracking-widest hover:bg-secondary/80 transition-all"
+              >
+                Muat Lebih Banyak
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="space-y-6">

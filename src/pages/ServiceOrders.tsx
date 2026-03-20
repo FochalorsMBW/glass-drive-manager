@@ -469,7 +469,7 @@ const NewOrderModal = ({ open, onClose }: { open: boolean; onClose: () => void }
                 onChange={e => setVehicleId(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border/50 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none"
               >
-                <option value="">-- Pilih --</option>
+                <option value="">{vehicles.length === 0 ? "⚠️ Belum ada kendaraan" : "-- Pilih --"}</option>
                 {vehicles.map(v => (
                   <option key={v.id} value={v.id}>{v.plateNumber} — {v.make}</option>
                 ))}
@@ -483,7 +483,7 @@ const NewOrderModal = ({ open, onClose }: { open: boolean; onClose: () => void }
                 onChange={e => setMechanicId(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border/50 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none"
               >
-                <option value="">-- Pilih --</option>
+                <option value="">{mechanics.length === 0 ? "⚠️ Belum ada mekanik" : "-- Pilih --"}</option>
                 {mechanics.map(m => (
                   <option key={m.id} value={m.id}>{m.name}</option>
                 ))}

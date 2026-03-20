@@ -30,8 +30,6 @@ export interface NotificationLog {
   timestamp: string;
 }
 
-
-
 interface AppState {
   serviceOrders: ServiceOrder[];
   mechanics: Mechanic[];
@@ -77,7 +75,9 @@ interface AppState {
   deleteMechanic: (id: string) => void;
   processPayout: (payout: Payout) => void;
   restockItem: (itemId: string, quantity: number, notes?: string) => void;
+  resetData: () => void;
 }
+
 
 export const useAppStore = create<AppState>()(
   persist(
@@ -87,10 +87,7 @@ export const useAppStore = create<AppState>()(
       vehicles: initialVehicles,
       customers: initialCustomers,
       inventory: initialInventory,
-      activities: [
-        { id: '1', type: 'order', message: 'Pesanan SO-001 dalam pengerjaan', timestamp: new Date().toISOString() },
-        { id: '2', type: 'inventory', message: 'Stok Oli Sintetis menipis', timestamp: new Date().toISOString() },
-      ],
+      activities: [],
       searchQuery: "",
       settings: {
         taxRate: 11,
@@ -102,6 +99,7 @@ export const useAppStore = create<AppState>()(
         workshopLogo: "",
         invoiceTerms: "1. Garansi servis 7 hari.\n2. Sparepart asli tidak dapat dikembalikan.\n3. Pembayaran tunai/transfer.",
         waGatewayUrl: "https://api.whatsapp.com/send",
+        waApiKey: "",
       },
       expenses: initialExpenses,
       servicePackages: initialPackages,
@@ -186,7 +184,13 @@ export const useAppStore = create<AppState>()(
       })),
 
       addVehicle: (vehicle) => set((state) => ({ 
-        vehicles: [...state.vehicles, vehicle] 
+        vehicles: [...state.vehicles, vehicle],
+        activities: [{
+          id: Date.now().toString(),
+          type: 'customer',
+          message: `Kendaraan ${vehicle.plateNumber} (${vehicle.make}) didaftarkan`,
+          timestamp: new Date().toISOString()
+        }, ...state.activities]
       })),
 
       addActivity: (type, message) => set((state) => ({
@@ -217,7 +221,13 @@ export const useAppStore = create<AppState>()(
       })),
 
       addMechanic: (mechanic) => set((state) => ({
-        mechanics: [...state.mechanics, mechanic]
+        mechanics: [...state.mechanics, mechanic],
+        activities: [{
+          id: Date.now().toString(),
+          type: 'order',
+          message: `Mekanik baru ${mechanic.name} bergabung`,
+          timestamp: new Date().toISOString()
+        }, ...state.activities]
       })),
 
       updateMechanic: (mechanic) => set((state) => ({
@@ -230,6 +240,7 @@ export const useAppStore = create<AppState>()(
 
       processPayout: (payout) => set((state) => {
         const mechanic = state.mechanics.find(m => m.id === payout.mechanicId);
+        const amountStr = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(payout.amount);
         return {
           payouts: [payout, ...state.payouts],
           mechanics: state.mechanics.map(m => 
@@ -246,7 +257,13 @@ export const useAppStore = create<AppState>()(
               date: payout.date,
               description: `Pembayaran komisi untuk ${mechanic?.name || 'Mekanik'}`
             }
-          ]
+          ],
+          activities: [{
+            id: Date.now().toString(),
+            type: 'finance',
+            message: `Pembayaran komisi ${mechanic?.name} — ${amountStr}`,
+            timestamp: new Date().toISOString()
+          }, ...state.activities]
         };
       }),
 
@@ -312,10 +329,47 @@ export const useAppStore = create<AppState>()(
 
         return {
           inventory: state.inventory.map(i => i.id === itemId ? { ...i, stock: newStock } : i),
-          inventoryLogs: [log, ...state.inventoryLogs]
+          inventoryLogs: [log, ...state.inventoryLogs],
+          activities: [{
+            id: Date.now().toString(),
+            type: 'inventory',
+            message: `Restock item: ${item.name} (+${quantity})`,
+            timestamp: new Date().toISOString()
+          }, ...state.activities]
         };
       }),
+      
+      resetData: () => set({
+        serviceOrders: initialOrders,
+        mechanics: initialMechanics,
+        vehicles: initialVehicles,
+        customers: initialCustomers,
+        inventory: initialInventory,
+        activities: [],
+        expenses: initialExpenses,
+        servicePackages: initialPackages,
+        revenueData: initialRevenue,
+        monthlyRevenue: initialMonthly,
+        notifications: [],
+        payouts: [],
+        inventoryLogs: [],
+        transactions: [],
+        receiptCounter: 1000,
+        settings: {
+          taxRate: 11,
+          currency: "IDR",
+          commissionRate: 20,
+          workshopName: "UB Service",
+          workshopAddress: "Jl. Raya Lawang No. 123, Malang",
+          workshopPhone: "0812-3456-7890",
+          workshopLogo: "",
+          invoiceTerms: "1. Garansi servis 7 hari.\n2. Sparepart asli tidak dapat dikembalikan.\n3. Pembayaran tunai/transfer.",
+          waGatewayUrl: "https://api.whatsapp.com/send",
+          waApiKey: "",
+        },
+      }),
     }),
+
     {
       name: 'workshop-storage',
     }
