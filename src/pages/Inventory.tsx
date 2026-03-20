@@ -9,13 +9,16 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 const RestockModal = ({ open, onClose, item }: { open: boolean; onClose: () => void; item: any }) => {
-  const { updateInventoryStock } = useAppStore();
+  const { restockItem } = useAppStore();
   const [amount, setAmount] = useState(1);
+  const [notes, setNotes] = useState("");
 
   const handleSubmit = () => {
-    updateInventoryStock(item.id, amount);
+    restockItem(item.id, amount, notes);
     toast.success(`Stok ${item.name} berhasil ditambah ${amount} unit`);
     onClose();
+    setAmount(1);
+    setNotes("");
   };
 
   if (!open || !item) return null;
@@ -55,6 +58,15 @@ const RestockModal = ({ open, onClose, item }: { open: boolean; onClose: () => v
               </button>
             </div>
           </div>
+          <div>
+            <label className="text-sm text-muted-foreground mb-1.5 block">Catatan (Pilihan)</label>
+            <input 
+              value={notes} 
+              onChange={e => setNotes(e.target.value)}
+              placeholder="Contoh: Restock bulanan dari supplier"
+              className="w-full px-3 py-2 bg-secondary/50 border border-border/50 rounded-lg text-sm"
+            />
+          </div>
         </div>
 
         <div className="flex gap-3 mt-8">
@@ -78,25 +90,32 @@ const AddPartModal = ({ open, onClose }: { open: boolean; onClose: () => void })
   const [stock, setStock] = useState(0);
   const [minThreshold, setMinThreshold] = useState(5);
   const [price, setPrice] = useState(0);
+  const [costPrice, setCostPrice] = useState(0);
   const [supplier, setSupplier] = useState("");
 
   const handleSubmit = () => {
-    if (!name || !sku || !category || !supplier || price <= 0) {
-      toast.error("Mohon lengkapi semua field");
-      return;
-    }
+    // Basic validations
+    if (!name.trim()) { toast.error("Nama suku cadang harus diisi"); return; }
+    if (!sku.trim()) { toast.error("SKU harus diisi"); return; }
+    if (!category.trim()) { toast.error("Kategori harus diisi"); return; }
+    if (!supplier.trim()) { toast.error("Supplier harus diisi"); return; }
+    if (price <= 0) { toast.error("Harga jual harus lebih dari 0"); return; }
+    if (costPrice <= 0) { toast.error("Harga modal harus lebih dari 0"); return; }
+    if (stock < 0) { toast.error("Stok awal tidak bisa negatif"); return; }
+
     addInventoryItem({
       id: `i${Date.now()}`,
-      sku,
+      sku: sku.toUpperCase(),
       name,
       category,
       stock,
       minThreshold,
       price,
+      costPrice,
       supplier,
     });
     toast.success(`${name} berhasil ditambahkan ke inventaris`);
-    setName(""); setSku(""); setCategory(""); setStock(0); setMinThreshold(5); setPrice(0); setSupplier("");
+    setName(""); setSku(""); setCategory(""); setStock(0); setMinThreshold(5); setPrice(0); setCostPrice(0); setSupplier("");
     onClose();
   };
 
@@ -138,15 +157,17 @@ const AddPartModal = ({ open, onClose }: { open: boolean; onClose: () => void })
             <input type="number" value={stock} onChange={e => setStock(Number(e.target.value))}
               className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border/50 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/20" />
           </div>
-          <div>
-            <label className="text-sm text-muted-foreground mb-1.5 block">Batas Minimum</label>
-            <input type="number" value={minThreshold} onChange={e => setMinThreshold(Number(e.target.value))}
-              className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border/50 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/20" />
-          </div>
-          <div>
-            <label className="text-sm text-muted-foreground mb-1.5 block">Harga (Rp)</label>
-            <input type="number" value={price} onChange={e => setPrice(Number(e.target.value))}
-              className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border/50 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/20" />
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm text-muted-foreground mb-1.5 block">Harga Modal (HPP)</label>
+              <input type="number" value={costPrice} onChange={e => setCostPrice(Number(e.target.value))}
+                className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border/50 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/20" />
+            </div>
+            <div>
+              <label className="text-sm text-muted-foreground mb-1.5 block">Harga Jual (Retail)</label>
+              <input type="number" value={price} onChange={e => setPrice(Number(e.target.value))}
+                className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border/50 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/20" />
+            </div>
           </div>
           <div>
             <label className="text-sm text-muted-foreground mb-1.5 block">Supplier</label>
@@ -169,11 +190,9 @@ const AddPartModal = ({ open, onClose }: { open: boolean; onClose: () => void })
 };
 
 const InventoryPage = () => {
-  const { inventory, activities } = useAppStore();
+  const { inventory, inventoryLogs } = useAppStore();
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedRestockItem, setSelectedRestockItem] = useState<any>(null);
-
-  const inventoryLogs = activities.filter(a => a.type === 'inventory');
 
   return (
     <AppLayout>
@@ -184,11 +203,19 @@ const InventoryPage = () => {
         </div>
         <button
           onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-snappy"
+          className="hidden md:flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-snappy"
         >
           <Plus className="w-4 h-4" /> Tambah Suku Cadang
         </button>
       </div>
+
+      {/* FAB Mobile */}
+      <button
+        onClick={() => setShowAddModal(true)}
+        className="md:hidden fixed bottom-6 right-6 w-14 h-14 rounded-2xl bg-primary text-primary-foreground shadow-2xl shadow-primary/40 flex items-center justify-center z-50 hover:scale-110 active:scale-95 transition-all outline-none ring-4 ring-background"
+      >
+        <Plus className="w-7 h-7" />
+      </button>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <div className="lg:col-span-3">
@@ -249,27 +276,35 @@ const InventoryPage = () => {
             </div>
             <div className="space-y-4">
               <AnimatePresence mode="popLayout">
-                {inventoryLogs.slice(0, 8).map((log, i) => (
-                  <motion.div
-                    key={log.id}
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    className="flex gap-3 pb-4 border-b border-border/30 last:border-0 last:pb-0"
-                  >
-                    <div className={cn(
-                      "w-6 h-6 shrink-0 rounded flex items-center justify-center",
-                      log.message.includes('bertambah') ? "bg-success/10 text-success" : "bg-warning/10 text-warning"
-                    )}>
-                      {log.message.includes('bertambah') ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium leading-relaxed">{log.message}</p>
-                      <p className="text-[10px] text-muted-foreground mt-1">
-                        {new Date(log.timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    </div>
-                  </motion.div>
-                ))}
+                {inventoryLogs.slice(0, 10).map((log) => {
+                  const item = inventory.find(i => i.id === log.itemId);
+                  return (
+                    <motion.div
+                      key={log.id}
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className="flex gap-3 pb-4 border-b border-border/30 last:border-0 last:pb-0"
+                    >
+                      <div className={cn(
+                        "w-6 h-6 shrink-0 rounded flex items-center justify-center",
+                        log.type === 'restock' ? "bg-success/10 text-success" : 
+                        log.type === 'usage' ? "bg-info/10 text-info" : "bg-warning/10 text-warning"
+                      )}>
+                        {log.type === 'restock' ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[11px] font-bold text-foreground line-clamp-1">{item?.name || 'Suku Cadang'}</p>
+                          <p className="text-[10px] font-mono font-bold text-success">+{log.quantity}</p>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1 italic">{log.notes || 'Pembaruan stok'}</p>
+                        <p className="text-[10px] text-muted-foreground/50 mt-1 uppercase tracking-tighter">
+                          {new Date(log.date).toLocaleString('id-ID', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short' })}
+                        </p>
+                      </div>
+                    </motion.div>
+                  );
+                })}
               </AnimatePresence>
               {inventoryLogs.length === 0 && (
                 <div className="text-center py-8 opacity-20">

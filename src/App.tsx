@@ -13,9 +13,12 @@ import Settings from "./pages/Settings";
 import Mechanics from "./pages/Mechanics";
 import POS from "./pages/POS";
 import Analytics from "./pages/Analytics";
+import Finance from "./pages/Finance";
+import Expenses from "./pages/Expenses";
+import Notifications from "./pages/Notifications";
+import Packages from "./pages/Packages";
 
 import { ThemeProvider } from "next-themes";
-
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -35,6 +38,10 @@ const App = () => (
           <Route path="/mechanics" element={<Mechanics />} />
             <Route path="/pos" element={<POS />} />
             <Route path="/analytics" element={<Analytics />} />
+            <Route path="/finance" element={<Finance />} />
+            <Route path="/expenses" element={<Expenses />} />
+            <Route path="/notifications" element={<Notifications />} />
+            <Route path="/packages" element={<Packages />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

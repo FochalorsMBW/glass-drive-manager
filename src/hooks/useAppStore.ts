@@ -1,185 +1,320 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { 
-  customers as initialCustomers, 
+  type ServiceOrder, type ServiceStatus, type Mechanic, type Vehicle, type Customer, type InventoryItem, type Expense, 
+  type ServicePackage,
+  type Payout,
+  type InventoryLog,
+  type WorkshopSettings,
+  type Transaction,
+  serviceOrders as initialOrders, 
   mechanics as initialMechanics, 
   vehicles as initialVehicles, 
-  inventory as initialInventory, 
-  serviceOrders as initialServiceOrders,
-  revenueData as initialRevenueData,
-  Customer, Mechanic, Vehicle, InventoryItem, ServiceOrder, ServiceStatus
-} from '@/lib/mock-data';
+  customers as initialCustomers, 
+  inventory as initialInventory,
+  expenses as initialExpenses,
+  servicePackages as initialPackages,
+  revenueData as initialRevenue,
+  monthlyRevenue as initialMonthly
+} from "@/lib/mock-data";
 
-interface Activity {
+export type NotificationStatus = 'sent' | 'pending' | 'failed';
+
+export interface NotificationLog {
   id: string;
-  type: 'order' | 'inventory' | 'customer' | 'payment';
+  orderId: string;
+  customerName: string;
+  type: string;
+  status: NotificationStatus;
   message: string;
   timestamp: string;
 }
 
-interface WorkshopSettings {
-  name: string;
-  logo: string;
-  address: string;
-  currency: string;
-  taxRate: number;
-}
+
 
 interface AppState {
-  customers: Customer[];
+  serviceOrders: ServiceOrder[];
   mechanics: Mechanic[];
   vehicles: Vehicle[];
+  customers: Customer[];
   inventory: InventoryItem[];
-  serviceOrders: ServiceOrder[];
-  revenueData: { date: string; revenue: number }[];
-  activities: Activity[];
+  activities: { id: string; type: 'order' | 'inventory' | 'customer' | 'finance'; message: string; timestamp: string }[];
+  expenses: Expense[];
   searchQuery: string;
   settings: WorkshopSettings;
+  servicePackages: ServicePackage[];
+  revenueData: { date: string; revenue: number }[];
+  monthlyRevenue: { month: string; revenue: number }[];
+  notifications: NotificationLog[];
+  payouts: Payout[];
+  inventoryLogs: InventoryLog[];
+  transactions: Transaction[];
+  receiptCounter: number;
   
   // Actions
   setSearchQuery: (query: string) => void;
-  updateSettings: (settings: Partial<WorkshopSettings>) => void;
   addServiceOrder: (order: ServiceOrder) => void;
-  updateServiceOrder: (orderId: string, updates: Partial<ServiceOrder>) => void;
-  updateServiceOrderStatus: (orderId: string, status: ServiceStatus) => void;
-  removeServiceOrder: (orderId: string) => void;
-  updateInventoryStock: (itemId: string, delta: number) => void;
+  updateServiceOrderStatus: (id: string, status: ServiceStatus) => void;
+  updateServiceChecklist: (orderId: string, checklist: ServiceOrder['checklist']) => void;
   addInventoryItem: (item: InventoryItem) => void;
-  addTransaction: (amount: number) => void;
+  updateInventoryStock: (id: string, delta: number) => void;
+  updateStock: (id: string, newStock: number) => void;
   addCustomer: (customer: Customer) => void;
   addVehicle: (vehicle: Vehicle) => void;
-  addActivity: (activity: Omit<Activity, 'id' | 'timestamp'>) => void;
+  addActivity: (type: 'order' | 'inventory' | 'customer' | 'finance', message: string) => void;
+  addExpense: (expense: Expense) => void;
+  deleteExpense: (id: string) => void;
+  updateSettings: (settings: Partial<WorkshopSettings>) => void;
+  addTransaction: (amount: number) => void;
+  addSaleTransaction: (trx: Transaction) => void;
+  addLoyaltyPoints: (customerId: string, points: number) => void;
+  addNotificationLog: (log: NotificationLog) => void;
+  addServicePackage: (pkg: ServicePackage) => void;
+  updateServicePackage: (pkg: ServicePackage) => void;
+  deleteServicePackage: (id: string) => void;
+  addMechanic: (mechanic: Mechanic) => void;
+  updateMechanic: (mechanic: Mechanic) => void;
+  deleteMechanic: (id: string) => void;
+  processPayout: (payout: Payout) => void;
+  restockItem: (itemId: string, quantity: number, notes?: string) => void;
 }
 
 export const useAppStore = create<AppState>()(
   persist(
     (set) => ({
-      customers: initialCustomers,
+      serviceOrders: initialOrders,
       mechanics: initialMechanics,
       vehicles: initialVehicles,
+      customers: initialCustomers,
       inventory: initialInventory,
-      serviceOrders: initialServiceOrders,
-      revenueData: initialRevenueData,
       activities: [
-        { id: '1', type: 'order', message: 'Servis SO-892 selesai', timestamp: new Date().toISOString() },
-        { id: '2', type: 'inventory', message: 'Oli Shell Helix ditambah 12 botol', timestamp: new Date().toISOString() },
+        { id: '1', type: 'order', message: 'Pesanan SO-001 dalam pengerjaan', timestamp: new Date().toISOString() },
+        { id: '2', type: 'inventory', message: 'Stok Oli Sintetis menipis', timestamp: new Date().toISOString() },
       ],
-      searchQuery: '',
+      searchQuery: "",
       settings: {
-        name: "UB Service",
-        logo: "/IconUB.png",
-        address: "Jl. Veteran No. 1, Malang",
-        currency: "Rp",
-        taxRate: 11
+        taxRate: 11,
+        currency: "IDR",
+        commissionRate: 20,
+        workshopName: "UB Service",
+        workshopAddress: "Jl. Raya Lawang No. 123, Malang",
+        workshopPhone: "0812-3456-7890",
+        workshopLogo: "",
+        invoiceTerms: "1. Garansi servis 7 hari.\n2. Sparepart asli tidak dapat dikembalikan.\n3. Pembayaran tunai/transfer.",
+        waGatewayUrl: "https://api.whatsapp.com/send",
       },
+      expenses: initialExpenses,
+      servicePackages: initialPackages,
+      revenueData: initialRevenue,
+      monthlyRevenue: initialMonthly,
+      notifications: [],
+      payouts: [],
+      inventoryLogs: [],
+      transactions: [],
+      receiptCounter: 1000,
 
       setSearchQuery: (query) => set({ searchQuery: query }),
       
-      updateSettings: (newSettings) => set((state) => ({ 
-        settings: { ...state.settings, ...newSettings } 
-      })),
-
-      addServiceOrder: (order) => set((state) => ({
+      addServiceOrder: (order) => set((state) => ({ 
         serviceOrders: [order, ...state.serviceOrders],
-        activities: [{ 
-          id: Math.random().toString(36).substr(2, 9), 
-          type: 'order' as const, 
-          message: `Pesanan baru ${order.id} dibuat`, 
-          timestamp: new Date().toISOString() 
-        }, ...state.activities].slice(0, 10)
+        activities: [{
+          id: Date.now().toString(),
+          type: 'order',
+          message: `Pesanan baru ${order.id} dibuat`,
+          timestamp: new Date().toISOString()
+        }, ...state.activities]
       })),
 
-      updateServiceOrder: (orderId, updates) => set((state) => ({
-        serviceOrders: state.serviceOrders.map((order) =>
-          order.id === orderId ? { ...order, ...updates } : order
-        )
-      })),
+      updateServiceOrderStatus: (id, status) => set((state) => {
+        let updatedCustomers = [...state.customers];
+        const order = state.serviceOrders.find(o => o.id === id);
+        
+        if (status === 'paid' && order) {
+          // Auto-calculate next service date (4 months from now)
+          const nextDate = new Date();
+          nextDate.setMonth(nextDate.getMonth() + 4);
+          
+          updatedCustomers = state.customers.map(c => 
+            c.id === order.customer.id 
+              ? { ...c, nextServiceDate: nextDate.toISOString() } 
+              : c
+          );
+        }
 
-      updateServiceOrderStatus: (orderId, status) => set((state) => {
-        const order = state.serviceOrders.find(o => o.id === orderId);
         return {
-          serviceOrders: state.serviceOrders.map((o) =>
-            o.id === orderId ? { ...o, status } : o
-          ),
-          activities: [{ 
-            id: Math.random().toString(36).substr(2, 9), 
-            type: 'order' as const, 
-            message: `${orderId} pindah ke status ${status}`, 
-            timestamp: new Date().toISOString() 
-          }, ...state.activities].slice(0, 10)
+          serviceOrders: state.serviceOrders.map((o) => o.id === id ? { ...o, status } : o),
+          customers: updatedCustomers,
+          activities: [{
+            id: Date.now().toString(),
+            type: 'order',
+            message: `Status pesanan ${id} diperbarui menjadi ${status}`,
+            timestamp: new Date().toISOString()
+          }, ...state.activities]
         };
       }),
 
-      removeServiceOrder: (orderId) => set((state) => ({
-        serviceOrders: state.serviceOrders.filter((order) => order.id !== orderId)
+      updateServiceChecklist: (orderId, checklist) => set((state) => ({
+        serviceOrders: state.serviceOrders.map(o => o.id === orderId ? { ...o, checklist } : o)
       })),
 
-      updateInventoryStock: (itemId, delta) => set((state) => {
-        const item = state.inventory.find(i => i.id === itemId);
+      addInventoryItem: (item) => set((state) => ({ 
+        inventory: [...state.inventory, item],
+        activities: [{
+          id: Date.now().toString(),
+          type: 'inventory',
+          message: `Item baru ${item.name} ditambahkan ke inventaris`,
+          timestamp: new Date().toISOString()
+        }, ...state.activities]
+      })),
+
+      updateInventoryStock: (id, delta) => set((state) => ({
+        inventory: state.inventory.map((i) => i.id === id ? { ...i, stock: i.stock + delta } : i)
+      })),
+
+      updateStock: (id, newStock) => set((state) => ({
+        inventory: state.inventory.map((i) => i.id === id ? { ...i, stock: newStock } : i)
+      })),
+
+      addCustomer: (customer) => set((state) => ({ 
+        customers: [...state.customers, customer],
+        activities: [{
+          id: Date.now().toString(),
+          type: 'customer',
+          message: `Pelanggan baru ${customer.name} terdaftar`,
+          timestamp: new Date().toISOString()
+        }, ...state.activities]
+      })),
+
+      addVehicle: (vehicle) => set((state) => ({ 
+        vehicles: [...state.vehicles, vehicle] 
+      })),
+
+      addActivity: (type, message) => set((state) => ({
+        activities: [{
+          id: Date.now().toString(),
+          type,
+          message,
+          timestamp: new Date().toISOString()
+        }, ...state.activities]
+      })),
+
+      addExpense: (expense) => set((state) => ({
+        expenses: [...state.expenses, expense],
+        activities: [{
+          id: Date.now().toString(),
+          type: 'finance',
+          message: `Pengeluaran baru: ${expense.category} - Rp ${expense.amount.toLocaleString()}`,
+          timestamp: new Date().toISOString()
+        }, ...state.activities]
+      })),
+
+      deleteExpense: (id) => set((state) => ({
+        expenses: state.expenses.filter(e => e.id !== id)
+      })),
+
+      updateSettings: (newSettings) => set((state) => ({
+        settings: { ...state.settings, ...newSettings }
+      })),
+
+      addMechanic: (mechanic) => set((state) => ({
+        mechanics: [...state.mechanics, mechanic]
+      })),
+
+      updateMechanic: (mechanic) => set((state) => ({
+        mechanics: state.mechanics.map(m => m.id === mechanic.id ? mechanic : m)
+      })),
+
+      deleteMechanic: (id) => set((state) => ({
+        mechanics: state.mechanics.filter(m => m.id !== id)
+      })),
+
+      processPayout: (payout) => set((state) => {
+        const mechanic = state.mechanics.find(m => m.id === payout.mechanicId);
         return {
-          inventory: state.inventory.map((i) =>
-            i.id === itemId ? { ...i, stock: Math.max(0, i.stock + delta) } : i
+          payouts: [payout, ...state.payouts],
+          mechanics: state.mechanics.map(m => 
+            m.id === payout.mechanicId 
+              ? { ...m, totalCommissionPaid: (m.totalCommissionPaid || 0) + payout.amount, lastPayoutDate: payout.date } 
+              : m
           ),
-          activities: [{ 
-            id: Math.random().toString(36).substr(2, 9), 
-            type: 'inventory' as const, 
-            message: `Stok ${item?.name} ${delta > 0 ? 'bertambah' : 'berkurang'} ${Math.abs(delta)}`, 
-            timestamp: new Date().toISOString() 
-          }, ...state.activities].slice(0, 10)
+          expenses: [
+            ...state.expenses,
+            {
+              id: `EXP-PAY-${Math.floor(Math.random() * 10000)}`,
+              category: "Gaji/Komisi",
+              amount: payout.amount,
+              date: payout.date,
+              description: `Pembayaran komisi untuk ${mechanic?.name || 'Mekanik'}`
+            }
+          ]
         };
       }),
-
-      addInventoryItem: (item) => set((state) => ({
-        inventory: [item, ...state.inventory],
-        activities: [{ 
-          id: Math.random().toString(36).substr(2, 9), 
-          type: 'inventory' as const, 
-          message: `Suku cadang baru ${item.name} ditambahkan`, 
-          timestamp: new Date().toISOString() 
-        }, ...state.activities].slice(0, 10)
-      })),
 
       addTransaction: (amount) => set((state) => {
         const today = new Date().toLocaleDateString('id-ID', { weekday: 'short' });
         const dayLabel = today.charAt(0).toUpperCase() + today.slice(1);
         
-        const found = state.revenueData.some((d) => d.date === dayLabel);
-        const newRevenueData = found 
-          ? state.revenueData.map((d) => d.date === dayLabel ? { ...d, revenue: d.revenue + amount } : d)
-          : [...state.revenueData, { date: dayLabel, revenue: amount }];
-
-        return { 
-          revenueData: newRevenueData,
-          activities: [{ 
-            id: Math.random().toString(36).substr(2, 9), 
-            type: 'payment' as const, 
-            message: `Transaksi lunas sebesar Rp ${amount.toLocaleString()}`, 
-            timestamp: new Date().toISOString() 
-          }, ...state.activities].slice(0, 10)
+        return {
+          revenueData: state.revenueData.map(d => 
+            d.date === dayLabel ? { ...d, revenue: d.revenue + amount } : d
+          )
         };
       }),
 
-      addCustomer: (customer) => set((state) => ({
-        customers: [customer, ...state.customers],
-        activities: [{ 
-          id: Math.random().toString(36).substr(2, 9), 
-          type: 'customer' as const, 
-          message: `Pelanggan baru ${customer.name} terdaftar`, 
-          timestamp: new Date().toISOString() 
-        }, ...state.activities].slice(0, 10)
+      addSaleTransaction: (trx) => set((state) => ({
+        transactions: [trx, ...state.transactions],
+        receiptCounter: state.receiptCounter + 1,
+        activities: [{
+          id: Date.now().toString(),
+          type: 'finance',
+          message: `Transaksi POS ${trx.receiptNumber} — ${trx.method} ${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(trx.total)}`,
+          timestamp: new Date().toISOString()
+        }, ...state.activities]
       })),
 
-      addVehicle: (vehicle) => set((state) => ({
-        vehicles: [vehicle, ...state.vehicles]
+      addLoyaltyPoints: (customerId, points) => set((state) => ({
+        customers: state.customers.map(c => 
+          c.id === customerId ? { ...c, points: (c.points || 0) + points } : c
+        )
       })),
 
-      addActivity: (activity) => set((state) => ({
-        activities: [{ 
-          id: Math.random().toString(36).substr(2, 9), 
-          ...activity, 
-          timestamp: new Date().toISOString() 
-        }, ...state.activities].slice(0, 10)
+      addNotificationLog: (log) => set((state) => ({ 
+        notifications: [log, ...state.notifications] 
       })),
+
+      addServicePackage: (pkg) => set((state) => ({
+        servicePackages: [...state.servicePackages, pkg]
+      })),
+
+      updateServicePackage: (pkg) => set((state) => ({
+        servicePackages: state.servicePackages.map(p => p.id === pkg.id ? pkg : p)
+      })),
+
+      deleteServicePackage: (id) => set((state) => ({
+        servicePackages: state.servicePackages.filter(p => p.id !== id)
+      })),
+
+      restockItem: (itemId, quantity, notes) => set((state) => {
+        const item = state.inventory.find(i => i.id === itemId);
+        if (!item) return state;
+        
+        const newStock = item.stock + quantity;
+        const log: InventoryLog = {
+          id: `LOG-${Math.floor(Math.random() * 100000)}`,
+          itemId,
+          type: 'restock',
+          quantity,
+          previousStock: item.stock,
+          newStock,
+          date: new Date().toISOString(),
+          notes
+        };
+
+        return {
+          inventory: state.inventory.map(i => i.id === itemId ? { ...i, stock: newStock } : i),
+          inventoryLogs: [log, ...state.inventoryLogs]
+        };
+      }),
     }),
     {
       name: 'workshop-storage',

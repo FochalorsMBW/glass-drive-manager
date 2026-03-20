@@ -3,10 +3,11 @@ import { AppSidebar } from "./AppSidebar";
 import { Bell, Search, Menu, User, Car, Receipt, Package, Settings as SettingsIcon } from "lucide-react";
 import { useAppStore } from "@/hooks/useAppStore";
 import { useNavigate } from "react-router-dom";
+import { cn } from "@/lib/utils";
 
 export const AppLayout = ({ children }: { children: ReactNode }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const { searchQuery, setSearchQuery, customers, vehicles, serviceOrders, inventory, settings } = useAppStore();
+  const { searchQuery, setSearchQuery, customers, vehicles, serviceOrders, inventory, settings, notifications } = useAppStore();
   const [showResults, setShowResults] = useState(false);
   const navigate = useNavigate();
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -49,15 +50,18 @@ export const AppLayout = ({ children }: { children: ReactNode }) => {
       <AppSidebar open={isSidebarOpen} onOpenChange={setIsSidebarOpen} />
       
       <div className="lg:ml-[260px] transition-all duration-300">
-        <header className="sticky top-0 z-40 glass border-b border-border/30 px-4 lg:px-8 py-4 flex items-center justify-between" style={{ borderRadius: 0 }}>
-          <div className="flex items-center gap-2 lg:gap-4 truncate mr-2 flex-1">
+        <header className="sticky top-0 z-40 glass border-b border-border/30 px-3 lg:px-8 py-3 lg:py-4 flex items-center justify-between gap-3 lg:gap-0" style={{ borderRadius: 0 }}>
+          <div className="flex items-center gap-2 lg:gap-4 flex-1 min-w-0">
             <button 
               onClick={() => setIsSidebarOpen(true)}
               className="p-2 rounded-xl hover:bg-accent transition-snappy lg:hidden shrink-0"
             >
               <Menu className="w-5 h-5 text-muted-foreground" />
             </button>
-            <div className="relative w-full max-w-md group">
+            <div className={cn(
+              "relative w-full transition-all duration-300 group",
+              showResults ? "max-w-xl" : "max-w-md"
+            )}>
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground transition-colors group-focus-within:text-primary" />
               <input
                 ref={searchInputRef}
@@ -66,54 +70,62 @@ export const AppLayout = ({ children }: { children: ReactNode }) => {
                 onFocus={() => setShowResults(true)}
                 onBlur={() => setTimeout(() => setShowResults(false), 200)}
                 placeholder="Cari (Ctrl+K)..."
-                className="w-full pl-10 pr-4 py-2 rounded-xl bg-secondary/50 border border-border/50 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all focus:bg-background"
+                className="w-full pl-9 md:pl-10 pr-4 py-2 rounded-xl bg-secondary/50 border border-border/50 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all focus:bg-background"
               />
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-30 select-none pointer-events-none hidden md:flex">
-                <kbd className="px-1.5 py-0.5 rounded border border-border text-[10px] font-mono leading-none">Ctrl</kbd>
-                <kbd className="px-1.5 py-0.5 rounded border border-border text-[10px] font-mono leading-none">K</kbd>
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-20 select-none pointer-events-none hidden md:flex">
+                <kbd className="px-1.5 py-0.5 rounded border border-border text-[9px] font-mono leading-none">Ctrl</kbd>
+                <kbd className="px-1.5 py-0.5 rounded border border-border text-[9px] font-mono leading-none">K</kbd>
               </div>
               
               {showResults && results.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-2 bg-background border border-border/50 rounded-2xl shadow-2xl overflow-hidden z-50">
-                  {results.map((r, i) => {
-                    const Icon = r.icon;
-                    return (
-                      <button
-                        key={i}
-                        onMouseDown={() => { navigate(r.route); setSearchQuery(""); setShowResults(false); }}
-                        className="w-full text-left px-5 py-4 hover:bg-secondary/50 transition-snappy border-b border-border/10 last:border-0 flex items-center gap-4"
-                      >
-                        <div className="p-2 rounded-lg bg-primary/10 text-primary">
-                          <Icon className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold">{r.label}</p>
-                          <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">{r.sub}</p>
-                        </div>
-                      </button>
-                    );
-                  })}
+                <div className="absolute top-full left-0 right-0 mt-3 bg-background border border-border/50 rounded-2xl shadow-2xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <div className="p-2 max-h-[70vh] overflow-y-auto">
+                    {results.map((r, i) => {
+                      const Icon = r.icon;
+                      return (
+                        <button
+                          key={i}
+                          onMouseDown={() => { navigate(r.route); setSearchQuery(""); setShowResults(false); }}
+                          className="w-full text-left px-4 py-3 hover:bg-secondary/50 transition-snappy rounded-xl flex items-center gap-3"
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                            <Icon className="w-3.5 h-3.5" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-bold truncate">{r.label}</p>
+                            <p className="text-[9px] uppercase font-black text-muted-foreground tracking-widest truncate">{r.sub}</p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>
           </div>
 
-          <div className="flex items-center gap-2 lg:gap-4 shrink-0">
-            <button className="relative p-2 rounded-xl hover:bg-accent transition-snappy">
+          <div className="flex items-center gap-1.5 md:gap-4 shrink-0">
+            <button 
+              onClick={() => navigate("/notifications")}
+              className="relative p-2 rounded-xl hover:bg-accent transition-snappy md:block hidden"
+              title="Notifikasi & Hub Pesan"
+            >
               <Bell className="w-5 h-5 text-muted-foreground" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-destructive rounded-full border-2 border-background" />
+              {notifications.some(n => n.status === 'failed') && (
+                <span className="absolute top-2 right-2 w-1.5 h-1.5 bg-destructive rounded-full border border-background shadow-sm" />
+              )}
             </button>
-            <div className="flex items-center gap-3 pl-2 lg:pl-4 border-l border-border/30">
-              <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-xs font-bold text-primary-foreground shadow-lg shadow-primary/20 overflow-hidden">
-                {(settings.logo || "/IconUB.png") ? (
-                  <img src={settings.logo || "/IconUB.png"} alt={settings.name} className="w-full h-full object-cover" />
+            <div className="flex items-center gap-2 md:gap-3 md:pl-4 md:border-l border-border/30">
+              <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-primary flex items-center justify-center text-xs font-bold text-primary-foreground shadow-lg shadow-primary/20 overflow-hidden ring-2 ring-background">
+                {(settings.workshopLogo || "/IconUB.png") ? (
+                  <img src={settings.workshopLogo || "/IconUB.png"} alt={settings.workshopName} className="w-full h-full object-cover" />
                 ) : (
-                  settings.name.split(' ').map(n => n[0]).join('')
+                  (settings.workshopName || 'UB').split(' ').map(n => n[0]).join('')
                 )}
               </div>
-              <div className="text-sm hidden lg:block">
-                <p className="font-bold leading-tight">{settings.name}</p>
-                <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Administrator</p>
+              <div className="text-xs hidden md:block">
+                <p className="font-bold leading-tight truncate max-w-[100px]">{settings.workshopName}</p>
+                <p className="text-[9px] uppercase font-bold text-muted-foreground tracking-widest">Admin</p>
               </div>
             </div>
           </div>

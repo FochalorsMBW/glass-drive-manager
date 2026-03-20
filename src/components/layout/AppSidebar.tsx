@@ -3,22 +3,26 @@ import { cn } from "@/lib/utils";
 import { useAppStore } from "@/hooks/useAppStore";
 import {
   LayoutDashboard, Wrench, Car, Package, Users, UserCog,
-  ShoppingCart, BarChart3, Settings, ChevronLeft
+  ShoppingCart, BarChart3, Settings, ChevronLeft, Bell, Receipt, Wallet, Layers
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ThemeToggle } from "../ui/ThemeToggle";
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Beranda" },
   { to: "/orders", icon: Wrench, label: "Pesanan Layanan" },
+  { to: "/packages", icon: Layers, label: "Paket Servis" },
   { to: "/vehicles", icon: Car, label: "Kendaraan" },
   { to: "/inventory", icon: Package, label: "Inventaris" },
   { to: "/customers", icon: Users, label: "Pelanggan" },
   { to: "/mechanics", icon: UserCog, label: "Mekanik" },
   { to: "/pos", icon: ShoppingCart, label: "Kasir POS" },
   { to: "/analytics", icon: BarChart3, label: "Analitik" },
+  { to: "/finance", icon: Receipt, label: "Keuangan" },
+  { to: "/expenses", icon: Wallet, label: "Pengeluaran" },
   { to: "/settings", icon: Settings, label: "Pengaturan" },
+  { to: "/notifications", icon: Bell, label: "Notifikasi" },
 ];
 
 interface AppSidebarProps {
@@ -30,7 +34,14 @@ interface AppSidebarProps {
 export const AppSidebar = ({ open, onOpenChange, className }: AppSidebarProps) => {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
-  const { settings } = useAppStore(); // Added useAppStore hook
+  const { settings } = useAppStore();
+  
+  // Auto-close sidebar on mobile when route changes
+  useEffect(() => {
+    if (window.innerWidth < 1024 && open) {
+      onOpenChange?.(false);
+    }
+  }, [location.pathname]);
 
   const sidebarContent = (
     <motion.aside
@@ -57,7 +68,7 @@ export const AppSidebar = ({ open, onOpenChange, className }: AppSidebarProps) =
             >
               {/* Dynamic full logo/branding */}
               <div className="flex flex-col">
-                <img src="/IconUB.png" alt={settings.name} className="h-7 w-auto object-contain self-start" />
+                <img src="/IconUB.png" alt={settings.workshopName} className="h-7 w-auto object-contain self-start" />
                 <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mt-0.5">Management System</p>
               </div>
             </motion.div>

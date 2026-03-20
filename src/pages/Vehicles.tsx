@@ -206,11 +206,19 @@ const VehiclesPage = () => {
         </div>
         <button
           onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-snappy"
+          className="hidden md:flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-snappy"
         >
           <Plus className="w-4 h-4" /> Tambah Kendaraan
         </button>
       </div>
+
+      {/* FAB Mobile */}
+      <button
+        onClick={() => setShowAddModal(true)}
+        className="md:hidden fixed bottom-6 right-6 w-14 h-14 rounded-2xl bg-primary text-primary-foreground shadow-2xl shadow-primary/40 flex items-center justify-center z-50 hover:scale-110 active:scale-95 transition-all outline-none ring-4 ring-background"
+      >
+        <Plus className="w-7 h-7" />
+      </button>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {vehicles.map((v, i) => {

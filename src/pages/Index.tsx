@@ -3,7 +3,7 @@ import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 import { useAppStore } from "@/hooks/useAppStore";
 import { formatCurrency } from "@/lib/mock-data";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { TrendingUp, Wrench, Car, AlertTriangle, ArrowUpRight, Plus, ShoppingCart, History, UserPlus } from "lucide-react";
+import { TrendingUp, Wrench, Car, AlertTriangle, ArrowUpRight, Plus, ShoppingCart, History, UserPlus, DollarSign, Package } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
@@ -52,18 +52,45 @@ const statusLabels: Record<string, string> = {
 };
 
 const Dashboard = () => {
-  const { revenueData, serviceOrders, mechanics, inventory, activities } = useAppStore();
+  const { revenueData, serviceOrders, mechanics, inventory, activities, expenses, settings } = useAppStore();
   const navigate = useNavigate();
   
   const today = new Date().toLocaleDateString('id-ID', { weekday: 'short' });
   const dayLabel = today.charAt(0).toUpperCase() + today.slice(1);
   const todayRevenue = revenueData.find(d => d.date === dayLabel)?.revenue || 0;
+  
+  const lowStockItems = inventory.filter(item => item.stock <= item.minThreshold);
+  const pendingOrders = serviceOrders.filter(o => o.status === 'queued');
+  
+  // Job Aging: Orders > 24h
+  const agingOrders = pendingOrders.filter(o => {
+    const hours = (new Date().getTime() - new Date(o.createdAt).getTime()) / (1000 * 60 * 60);
+    return hours > 24;
+  });
 
   const activeOrders = serviceOrders.filter(o => o.status === "in_progress" || o.status === "queued").length;
   const completedToday = serviceOrders.filter(o => (o.status === "completed" || o.status === "paid") && o.createdAt.startsWith(new Date().toISOString().split('T')[0])).length;
   const lowStockCount = inventory.filter(i => i.stock <= i.minThreshold).length;
 
   const weeklyRevenueTotal = revenueData.reduce((sum, d) => sum + d.revenue, 0);
+
+  // Financial Summary for Dashboard
+  const completedOrders = serviceOrders.filter(o => o.status === 'completed' || o.status === 'paid');
+  const totalCOGS = completedOrders.reduce((sum, o) => {
+    return sum + (o.items?.reduce((itemSum, oi) => {
+      const inv = inventory.find(i => i.name === oi.name);
+      const cost = inv ? (inv.costPrice || 0) : ((oi.price || 0) * 0.7);
+      return itemSum + (cost * (oi.qty || 0));
+    }, 0) || 0);
+  }, 0);
+  const commissionRate = settings.commissionRate || 20;
+  const totalCommissions = completedOrders.reduce((sum, o) => sum + (o.laborCost * commissionRate) / 100, 0);
+  const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+  const netProfitTotal = (revenueData.reduce((s,d) => s + d.revenue, 0)) - totalCOGS - totalCommissions - totalExpenses;
+  
+  // Calculate actual Today's Net Profit based on real margins
+  const profitMargin = weeklyRevenueTotal > 0 ? netProfitTotal / weeklyRevenueTotal : 0.3;
+  const todayNetProfit = todayRevenue * Math.max(0, profitMargin);
 
   return (
     <AppLayout>
@@ -75,7 +102,7 @@ const Dashboard = () => {
         
         <div className="flex items-center gap-2">
           <button 
-            onClick={() => navigate('/service-orders')}
+            onClick={() => navigate('/orders')}
             className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-snappy"
           >
             <Plus className="w-4 h-4" /> Layanan Baru
@@ -90,68 +117,116 @@ const Dashboard = () => {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
-        <KpiCard label="Pendapatan Hari Ini" value={todayRevenue} prefix="Rp " icon={TrendingUp} change="+12.3% dari kemarin" />
-        <KpiCard label="Pesanan Aktif" value={activeOrders} icon={Wrench} change={`${serviceOrders.filter(o => o.status === "queued").length} dalam antrean`} />
-        <KpiCard label="Kendaraan Diservis" value={completedToday || 14} icon={Car} change="+3 hari ini" />
-        <KpiCard label="Stok Menipis" value={lowStockCount} icon={AlertTriangle} change="Butuh perhatian" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-5 mb-8">
+        <KpiCard label="Omzet Hari Ini" value={todayRevenue} prefix="Rp " icon={TrendingUp} change="+12.3%" />
+        <KpiCard label="Laba Bersih Est." value={todayNetProfit} prefix="Rp " icon={DollarSign} change="Setelah Biaya" />
+        <KpiCard label="Servis Selesai" value={completedToday || 0} icon={Car} change="Hari Ini" />
+        <KpiCard label="Stok Menipis" value={lowStockCount} icon={AlertTriangle} change="Segera Re-stock" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-5">
-        {/* Revenue Chart */}
-        <GlassCard className="lg:col-span-2">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <p className="text-sm text-muted-foreground">Pendapatan Mingguan</p>
-              <p className="text-2xl font-display">
-                <AnimatedNumber value={weeklyRevenueTotal / 1000000} prefix="Rp " suffix="jt" decimals={1} className="font-display" />
-              </p>
+        {/* Alerts & Performance */}
+          <GlassCard className="lg:col-span-2">
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <h3 className="text-xl font-display tracking-tight">Peringatan & Performa</h3>
+                <p className="text-sm text-muted-foreground">Status kritis yang butuh perhatian.</p>
+              </div>
+              <div className="flex gap-2">
+                {agingOrders.length > 0 && (
+                  <div className="px-3 py-1 rounded-full bg-destructive/10 text-destructive text-[10px] font-bold uppercase tracking-widest border border-destructive/20 animate-pulse">
+                    {agingOrders.length} Order Menua (&gt;24j)
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-          <ResponsiveContainer width="100%" height={240}>
-            <AreaChart data={revenueData}>
-              <defs>
-                <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                  <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <XAxis dataKey="date" axisLine={false} tickLine={false} className="text-[10px]" tick={{ fill: 'hsl(var(--muted-foreground))' }} />
-              <YAxis hide />
-              <Tooltip
-                contentStyle={{ background: "hsl(var(--secondary) / 0.8)", backdropFilter: "blur(12px)", border: "1px solid hsl(var(--border) / 0.2)", borderRadius: 12, fontSize: 12 }}
-                formatter={(v: number) => [formatCurrency(v), "Pendapatan"]}
-              />
-              <Area type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#revGrad)" />
-            </AreaChart>
-          </ResponsiveContainer>
-        </GlassCard>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-4">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                  <AlertTriangle className="w-3 h-3 text-warning" /> Stok Menipis
+                </p>
+                <div className="space-y-2">
+                  {lowStockItems.length > 0 ? lowStockItems.slice(0, 4).map((item, i) => (
+                    <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-secondary/20 border border-border/20 group hover:bg-secondary/40 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-warning/10 flex items-center justify-center">
+                          <Package className="w-4 h-4 text-warning" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">{item.name}</p>
+                          <p className="text-[10px] text-muted-foreground">Sisa {item.stock} {item.unit}</p>
+                        </div>
+                      </div>
+                      <button onClick={() => navigate('/inventory')} className="p-1.5 rounded-lg hover:bg-accent text-muted-foreground opacity-0 group-hover:opacity-100 transition-all">
+                        <ArrowUpRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )) : (
+                    <div className="py-8 text-center bg-success/5 rounded-xl border border-dashed border-success/20 text-success text-xs">
+                      Semua stok aman
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                  <Wrench className="w-3 h-3 text-primary" /> Performa Mekanik
+                </p>
+                <div className="space-y-2">
+                  {mechanics.slice(0, 4).map((m, i) => {
+                    const mOrders = serviceOrders.filter(o => o.mechanic.id === m.id && o.status === 'paid');
+                    return (
+                      <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-primary/5 border border-primary/10">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">
+                            {m.avatar}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium">{m.name}</p>
+                            <p className="text-[10px] text-muted-foreground uppercase">{m.specialization}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs font-bold">{mOrders.length} Selesai</p>
+                          <p className="text-[9px] text-muted-foreground">Rating 4.9</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </GlassCard>
 
         {/* Activity Log */}
-        <GlassCard>
-          <div className="flex items-center gap-2 mb-6">
-            <History className="w-4 h-4 text-muted-foreground" />
-            <p className="text-sm font-semibold">Aktivitas Terbaru</p>
+        <GlassCard className="lg:h-full">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-2">
+              <History className="w-4 h-4 text-muted-foreground" />
+              <p className="text-sm font-bold tracking-tight">Aktivitas Terbaru</p>
+            </div>
           </div>
           <div className="space-y-4">
             <AnimatePresence mode="popLayout">
               {activities.slice(0, 5).map((activity, i) => {
-                const config = activityIcons[activity.type];
+                const config = activityIcons[activity.type] || activityIcons.payment;
                 const Icon = config.icon;
                 return (
                   <motion.div
                     key={activity.id}
-                    initial={{ opacity: 0, x: 20 }}
+                    initial={{ opacity: 0, x: 10 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: i * 0.05 }}
-                    className="flex gap-3"
+                    className="flex gap-4 p-2 rounded-xl hover:bg-secondary/50 transition-snappy group"
                   >
-                    <div className={cn("w-8 h-8 shrink-0 rounded-lg flex items-center justify-center", config.bg)}>
+                    <div className={cn("w-9 h-9 shrink-0 rounded-xl flex items-center justify-center transition-colors shadow-sm", config.bg)}>
                       <Icon className={cn("w-4 h-4", config.color)} />
                     </div>
-                    <div>
-                      <p className="text-xs font-medium leading-tight">{activity.message}</p>
-                      <p className="text-[10px] text-muted-foreground mt-1">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold leading-tight group-hover:text-primary transition-colors">{activity.message}</p>
+                      <p className="text-[10px] uppercase font-bold text-muted-foreground mt-1 tracking-wider">
                         {new Date(activity.timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
                       </p>
                     </div>
@@ -167,7 +242,7 @@ const Dashboard = () => {
         {/* Recent Orders */}
         <GlassCard className="lg:col-span-2">
           <div className="flex items-center justify-between mb-5">
-            <p className="text-sm font-semibold tracking-tight">Pesanan Layanan Terbaru</p>
+            <p className="text-sm font-bold tracking-tight">Pesanan Layanan Terbaru</p>
           </div>
           <div className="space-y-3">
             {serviceOrders.slice(0, 3).map((order, i) => (
@@ -176,25 +251,28 @@ const Dashboard = () => {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.05 }}
-                className="flex items-center gap-4 py-3 px-3 rounded-xl bg-secondary/30 hover:bg-secondary/50 transition-snappy border border-transparent hover:border-border/30"
+                className="flex items-center gap-3 md:gap-4 py-3 px-3 rounded-2xl bg-secondary/30 hover:bg-secondary/50 transition-all border border-transparent hover:border-border/30 group"
               >
-                <div className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center shrink-0">
-                  <Wrench className="w-4 h-4 text-muted-foreground" />
+                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
+                  <Wrench className="w-4 h-4 text-primary" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-bold font-mono text-primary">{order.id}</p>
-                    <span className={cn("text-[10px] uppercase font-bold px-2 py-0.5 rounded-full", statusColors[order.status])}>
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-primary/70">{order.id}</p>
+                    <span className={cn("text-[9px] uppercase font-black px-2 py-0.5 rounded-full tracking-wider", statusColors[order.status])}>
                       {statusLabels[order.status]}
                     </span>
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                    {order.vehicle.plateNumber} · {order.vehicle.make} {order.vehicle.model}
+                  <p className="text-sm font-bold truncate">
+                    {order.vehicle.make} {order.vehicle.model}
+                  </p>
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest leading-none mt-1">
+                    {order.vehicle.plateNumber}
                   </p>
                 </div>
                 <div className="text-right shrink-0">
-                  <p className="text-sm font-mono font-bold">{formatCurrency(order.totalAmount)}</p>
-                  <p className="text-xs text-muted-foreground">{order.mechanic.name}</p>
+                  <p className="text-sm font-display font-medium">{formatCurrency(order.totalAmount)}</p>
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mt-0.5">{order.mechanic.name.split(' ')[0]}</p>
                 </div>
               </motion.div>
             ))}
@@ -203,23 +281,31 @@ const Dashboard = () => {
 
         {/* Mechanic Load */}
         <GlassCard>
-          <p className="text-sm font-semibold mb-4">Area Kerja Mekanik</p>
-          <div className="space-y-4">
+          <p className="text-sm font-bold tracking-tight mb-5">Area Kerja Mekanik</p>
+          <div className="space-y-5">
             {mechanics.map((m, i) => {
               const activeJobs = serviceOrders.filter(o => o.mechanic.id === m.id && o.status === "in_progress").length;
               return (
-                <div key={m.id} className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary border border-primary/20">{m.avatar}</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{m.name}</p>
-                    <p className="text-[10px] text-muted-foreground uppercase">{m.specialization}</p>
+                <div key={m.id} className="flex items-center gap-4 group">
+                  <div className="relative">
+                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary border border-primary/20 shadow-sm group-hover:scale-110 transition-transform">{m.avatar}</div>
+                    <span className={cn(
+                      "absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-background",
+                      activeJobs > 0 ? "bg-info" : "bg-success"
+                    )} />
                   </div>
-                  <span className={cn(
-                    "text-[10px] font-bold px-2 py-0.5 rounded-full uppercase",
-                    activeJobs > 0 ? "bg-info/10 text-info" : "bg-success/10 text-success"
-                  )}>
-                    {activeJobs > 0 ? `${activeJobs} aktif` : "Free"}
-                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold truncate transition-colors group-hover:text-primary">{m.name}</p>
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{m.specialization}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className={cn(
+                      "text-[10px] font-black uppercase tracking-wider",
+                      activeJobs > 0 ? "text-info" : "text-success"
+                    )}>
+                      {activeJobs > 0 ? `${activeJobs} Aktif` : "Tersedia"}
+                    </p>
+                  </div>
                 </div>
               );
             })}
