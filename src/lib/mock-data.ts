@@ -144,6 +144,8 @@ export interface ServiceOrder {
     battery: boolean;
     lights: boolean;
   };
+  startedAt?: string;
+  completedAt?: string;
 }
 
 export const customers: Customer[] = [];

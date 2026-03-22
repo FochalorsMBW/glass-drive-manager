@@ -7,6 +7,7 @@ import { formatCurrency, type ServicePackage, type ServicePackageItem } from "@/
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 const NewPackageModal = ({ open, onClose, editingPackage }: { open: boolean; onClose: () => void; editingPackage?: ServicePackage | null }) => {
   const { addServicePackage, updateServicePackage, inventory } = useAppStore();
@@ -145,6 +146,7 @@ const PackagesPage = () => {
   const { servicePackages, deleteServicePackage } = useAppStore();
   const [showNewModal, setShowNewModal] = useState(false);
   const [editingPackage, setEditingPackage] = useState<ServicePackage | null>(null);
+  const [deletePkgTarget, setDeletePkgTarget] = useState<ServicePackage | null>(null);
 
   return (
     <AppLayout>
@@ -161,90 +163,117 @@ const PackagesPage = () => {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {servicePackages.map((pkg, i) => (
-          <motion.div
-            key={pkg.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.1 }}
-          >
-            <GlassCard className="h-full flex flex-col group hover:border-primary/50 transition-all duration-500 relative">
-              <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-all z-10">
-                <button 
-                  onClick={() => { setEditingPackage(pkg); setShowNewModal(true); }}
-                  className="p-2 rounded-lg bg-background/80 border border-border/50 text-muted-foreground hover:text-primary transition-colors"
-                >
-                  <Edit2 className="w-4 h-4" />
-                </button>
-                <button 
-                  onClick={() => {
-                    if (confirm(`Hapus paket ${pkg.name}?`)) {
-                      deleteServicePackage(pkg.id);
-                      toast.success("Paket dihapus");
-                    }
-                  }}
-                  className="p-2 rounded-lg bg-background/80 border border-border/50 text-muted-foreground hover:text-destructive transition-colors"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="flex items-start justify-between mb-6">
-                <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-all duration-500">
-                  <Package className="w-6 h-6" />
+      {servicePackages.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {servicePackages.map((pkg, i) => (
+            <motion.div
+              key={pkg.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.1 }}
+            >
+              <GlassCard className="h-full flex flex-col group hover:border-primary/50 transition-all duration-500 relative">
+                <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-all z-10">
+                  <button 
+                    onClick={() => { setEditingPackage(pkg); setShowNewModal(true); }}
+                    className="p-2 rounded-lg bg-background/80 border border-border/50 text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+                  <button 
+                    onClick={() => setDeletePkgTarget(pkg)}
+                    className="p-2 rounded-lg bg-background/80 border border-border/50 text-muted-foreground hover:text-destructive transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
-                <div className="text-right">
-                  <p className="text-[10px] uppercase font-black tracking-widest text-muted-foreground mb-1">Total Paket</p>
-                  <p className="text-xl font-display text-primary">{formatCurrency(pkg.totalPrice)}</p>
-                </div>
-              </div>
 
-              <div className="flex-1">
-                <h3 className="text-lg font-bold mb-2 group-hover:text-primary transition-colors">{pkg.name}</h3>
-                <p className="text-sm text-muted-foreground mb-6 line-clamp-2">{pkg.description}</p>
-                
-                <div className="space-y-4">
-                  <div className="p-3 rounded-xl bg-secondary/30 border border-border/20">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-2">
-                      <Star className="w-3 h-3 text-warning" /> Jasa Mekanik
-                    </p>
-                    <p className="text-sm font-mono font-bold">{formatCurrency(pkg.laborCost)}</p>
+                <div className="flex items-start justify-between mb-6">
+                  <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-all duration-500">
+                    <Package className="w-6 h-6" />
                   </div>
+                  <div className="text-right">
+                    <p className="text-[10px] uppercase font-black tracking-widest text-muted-foreground mb-1">Total Paket</p>
+                    <p className="text-xl font-display text-primary">{formatCurrency(pkg.totalPrice)}</p>
+                  </div>
+                </div>
 
-                  <div className="p-3 rounded-xl bg-primary/5 border border-primary/10">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-primary mb-2 flex items-center gap-2">
-                      <ShoppingCart className="w-3 h-3" /> Suku Cadang & Bahan
-                    </p>
-                    <div className="space-y-1.5">
-                      {pkg.items.length > 0 ? (
-                        pkg.items.map((item, idx) => (
-                          <div key={idx} className="flex justify-between items-center text-[11px]">
-                            <span className="font-medium text-foreground/80">{item.name}</span>
-                            <span className="font-mono text-muted-foreground">x{item.qty}</span>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-[11px] text-muted-foreground italic">Hanya Jasa (Tanpa Part)</p>
-                      )}
+                <div className="flex-1">
+                  <h3 className="text-lg font-bold mb-2 group-hover:text-primary transition-colors">{pkg.name}</h3>
+                  <p className="text-sm text-muted-foreground mb-6 line-clamp-2">{pkg.description}</p>
+                  
+                  <div className="space-y-4">
+                    <div className="p-3 rounded-xl bg-secondary/30 border border-border/20">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2 flex items-center gap-2">
+                        <Star className="w-3 h-3 text-warning" /> Jasa Mekanik
+                      </p>
+                      <p className="text-sm font-mono font-bold">{formatCurrency(pkg.laborCost)}</p>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-primary/5 border border-primary/10">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-primary mb-2 flex items-center gap-2">
+                        <ShoppingCart className="w-3 h-3" /> Suku Cadang & Bahan
+                      </p>
+                      <div className="space-y-1.5">
+                        {pkg.items.length > 0 ? (
+                          pkg.items.map((item, idx) => (
+                            <div key={idx} className="flex justify-between items-center text-[11px]">
+                              <span className="font-medium text-foreground/80">{item.name}</span>
+                              <span className="font-mono text-muted-foreground">x{item.qty}</span>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-[11px] text-muted-foreground italic">Hanya Jasa (Tanpa Part)</p>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="mt-8 flex items-center gap-2 text-[10px] font-bold text-success uppercase tracking-widest">
-                <CheckCircle2 className="w-4 h-4" /> Tersedia untuk Order & POS
-              </div>
-            </GlassCard>
-          </motion.div>
-        ))}
-      </div>
+                <div className="mt-8 flex items-center gap-2 text-[10px] font-bold text-success uppercase tracking-widest">
+                  <CheckCircle2 className="w-4 h-4" /> Tersedia untuk Order & POS
+                </div>
+              </GlassCard>
+            </motion.div>
+          ))}
+        </div>
+      ) : (
+        <div className="py-24 text-center">
+          <div className="w-20 h-20 rounded-3xl bg-primary/5 flex items-center justify-center mx-auto mb-6 border border-primary/10">
+            <Package className="w-10 h-10 text-primary/20" />
+          </div>
+          <h3 className="text-lg font-display font-bold text-muted-foreground mb-1">Belum Ada Paket Servis</h3>
+          <p className="text-sm text-muted-foreground mb-6">Buat paket layanan standar untuk mempercepat proses order.</p>
+          <button
+            onClick={() => { setEditingPackage(null); setShowNewModal(true); }}
+            className="px-6 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:opacity-90 transition-snappy shadow-lg shadow-primary/20"
+          >
+            <Plus className="w-4 h-4 inline mr-2" /> Buat Paket Pertama
+          </button>
+        </div>
+      )}
 
       <NewPackageModal 
         open={showNewModal} 
         onClose={() => setShowNewModal(false)} 
         editingPackage={editingPackage} 
         key={editingPackage ? editingPackage.id : 'new'} 
+      />
+
+      <ConfirmDialog
+        open={!!deletePkgTarget}
+        onClose={() => setDeletePkgTarget(null)}
+        onConfirm={() => {
+          if (deletePkgTarget) {
+            deleteServicePackage(deletePkgTarget.id);
+            toast.success("Paket servis berhasil dihapus");
+            setDeletePkgTarget(null);
+          }
+        }}
+        title="Hapus Paket Servis"
+        message={`Apakah Anda yakin ingin menghapus "${deletePkgTarget?.name}"? Data ini tidak dapat dikembalikan.`}
+        confirmText="Ya, Hapus"
+        variant="danger"
       />
     </AppLayout>
   );

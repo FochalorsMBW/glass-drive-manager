@@ -1,11 +1,12 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { useAppStore } from "@/hooks/useAppStore";
-import { Car, Plus, X, History as HistoryIcon, Wrench, ChevronRight } from "lucide-react";
+import { Car, Plus, X, History as HistoryIcon, Wrench, ChevronRight, Search } from "lucide-react";
 import { motion } from "framer-motion";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { toast } from "sonner";
 import { formatCurrency, type Vehicle } from "@/lib/mock-data";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 const AddVehicleModal = ({ open, onClose }: { open: boolean; onClose: () => void }) => {
   const { customers, addVehicle } = useAppStore();
@@ -59,7 +60,7 @@ const AddVehicleModal = ({ open, onClose }: { open: boolean; onClose: () => void
             <label className="text-sm text-muted-foreground mb-1.5 block">Pemilik</label>
             <select value={customerId} onChange={e => setCustomerId(e.target.value)}
               className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border/50 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20">
-              <option value="">Pilih pemilik...</option>
+              <option value="">{customers.length === 0 ? "⚠️ Belum ada pelanggan" : "Pilih pemilik..."}</option>
               {customers.map(c => (
                 <option key={c.id} value={c.id}>{c.name} — {c.phone}</option>
               ))}
@@ -111,12 +112,44 @@ const AddVehicleModal = ({ open, onClose }: { open: boolean; onClose: () => void
 };
 
 const VehicleDetailsModal = ({ vehicle, open, onClose }: { vehicle: Vehicle | null; open: boolean; onClose: () => void }) => {
-  const { serviceOrders, mechanics } = useAppStore();
+  const { serviceOrders, updateVehicle, deleteVehicle } = useAppStore();
+  const [isEditing, setIsEditing] = useState(false);
+  const [editPlate, setEditPlate] = useState("");
+  const [editMake, setEditMake] = useState("");
+  const [editModel, setEditModel] = useState("");
+  const [editYear, setEditYear] = useState(2024);
+  const [editMileage, setEditMileage] = useState(0);
+  const [editEngine, setEditEngine] = useState("");
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
   if (!vehicle || !open) return null;
 
   const history = serviceOrders
     .filter(o => o.vehicle.plateNumber === vehicle.plateNumber)
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  const startEdit = () => {
+    setEditPlate(vehicle.plateNumber);
+    setEditMake(vehicle.make);
+    setEditModel(vehicle.model);
+    setEditYear(vehicle.year);
+    setEditMileage(vehicle.mileage);
+    setEditEngine(vehicle.engineNumber || "");
+    setIsEditing(true);
+  };
+
+  const saveEdit = () => {
+    if (!editPlate.trim() || !editMake.trim()) { toast.error("Plat & merek harus diisi"); return; }
+    updateVehicle({ ...vehicle, plateNumber: editPlate, make: editMake, model: editModel, year: editYear, mileage: editMileage, engineNumber: editEngine });
+    toast.success("Data kendaraan berhasil diubah");
+    setIsEditing(false);
+  };
+
+  const handleDeleteConfirm = () => {
+    deleteVehicle(vehicle.id);
+    toast.success("Kendaraan berhasil dihapus");
+    onClose();
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
@@ -142,16 +175,45 @@ const VehicleDetailsModal = ({ vehicle, open, onClose }: { vehicle: Vehicle | nu
         </div>
 
         <div className="flex-1 overflow-y-auto p-6">
-          <div className="grid grid-cols-2 gap-4 mb-8">
-            <div className="p-4 rounded-xl bg-secondary/30 border border-border/20">
-              <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-1">Kilometer Terakhir</p>
-              <p className="text-lg font-mono font-bold">{vehicle.mileage.toLocaleString()} KM</p>
+          {isEditing ? (
+            <div className="grid grid-cols-2 gap-4 mb-8">
+              <div>
+                <label className="text-[10px] uppercase font-bold text-muted-foreground mb-1 block">Plat Nomor</label>
+                <input value={editPlate} onChange={e => setEditPlate(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border/50 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/20" />
+              </div>
+              <div>
+                <label className="text-[10px] uppercase font-bold text-muted-foreground mb-1 block">Merek</label>
+                <input value={editMake} onChange={e => setEditMake(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border/50 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20" />
+              </div>
+              <div>
+                <label className="text-[10px] uppercase font-bold text-muted-foreground mb-1 block">Model</label>
+                <input value={editModel} onChange={e => setEditModel(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border/50 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20" />
+              </div>
+              <div>
+                <label className="text-[10px] uppercase font-bold text-muted-foreground mb-1 block">Tahun</label>
+                <input type="number" value={editYear} onChange={e => setEditYear(Number(e.target.value))} className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border/50 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/20" />
+              </div>
+              <div>
+                <label className="text-[10px] uppercase font-bold text-muted-foreground mb-1 block">Kilometer</label>
+                <input type="number" value={editMileage} onChange={e => setEditMileage(Number(e.target.value))} className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border/50 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/20" />
+              </div>
+              <div>
+                <label className="text-[10px] uppercase font-bold text-muted-foreground mb-1 block">No. Mesin</label>
+                <input value={editEngine} onChange={e => setEditEngine(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border/50 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/20" />
+              </div>
             </div>
-            <div className="p-4 rounded-xl bg-secondary/30 border border-border/20">
-              <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-1">No. Mesin</p>
-              <p className="text-lg font-mono font-bold">{vehicle.engineNumber || "—"}</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-4 mb-8">
+              <div className="p-4 rounded-xl bg-secondary/30 border border-border/20">
+                <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-1">Kilometer Terakhir</p>
+                <p className="text-lg font-mono font-bold">{vehicle.mileage.toLocaleString()} KM</p>
+              </div>
+              <div className="p-4 rounded-xl bg-secondary/30 border border-border/20">
+                <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-1">No. Mesin</p>
+                <p className="text-lg font-mono font-bold">{vehicle.engineNumber || "—"}</p>
+              </div>
             </div>
-          </div>
+          )}
 
           <h3 className="text-sm font-bold uppercase tracking-widest mb-6 flex items-center gap-2">
             <HistoryIcon className="w-4 h-4" /> Riwayat Servis
@@ -187,7 +249,36 @@ const VehicleDetailsModal = ({ vehicle, open, onClose }: { vehicle: Vehicle | nu
             )}
           </div>
         </div>
+
+        <div className="p-4 border-t border-border/30 flex items-center justify-between">
+          <button onClick={() => setShowDeleteConfirm(true)} className="px-4 py-2 rounded-xl bg-destructive/10 text-destructive text-xs font-bold border border-destructive/20 hover:bg-destructive/20 transition-all">
+            Hapus Kendaraan
+          </button>
+          <div className="flex items-center gap-3">
+            {isEditing ? (
+              <>
+                <button onClick={() => setIsEditing(false)} className="px-5 py-2 rounded-xl bg-secondary text-sm font-medium hover:bg-secondary/80 transition-snappy">Batal</button>
+                <button onClick={saveEdit} className="px-5 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:opacity-90 transition-snappy shadow-lg shadow-primary/20">Simpan</button>
+              </>
+            ) : (
+              <>
+                <button onClick={startEdit} className="px-5 py-2 rounded-xl bg-secondary text-sm font-bold hover:bg-secondary/80 transition-snappy border border-border/30">Edit</button>
+                <button onClick={onClose} className="px-5 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-snappy">Tutup</button>
+              </>
+            )}
+          </div>
+        </div>
       </motion.div>
+
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={handleDeleteConfirm}
+        title="Hapus Kendaraan"
+        message={`Apakah Anda yakin ingin menghapus "${vehicle.plateNumber}"? Semua riwayat servis untuk kendaraan ini akan hilang secara permanen.`}
+        confirmText="Ya, Hapus"
+        variant="danger"
+      />
     </div>
   );
 };
@@ -196,20 +287,50 @@ const VehiclesPage = () => {
   const { vehicles, customers } = useAppStore();
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [displayLimit, setDisplayLimit] = useState(12);
+
+  const filteredVehicles = useMemo(() => {
+    const q = searchQuery.toLowerCase();
+    return vehicles.filter(v => {
+      const owner = customers.find(c => c.id === v.customerId);
+      return (
+        v.plateNumber.toLowerCase().includes(q) ||
+        v.make.toLowerCase().includes(q) ||
+        v.model.toLowerCase().includes(q) ||
+        (owner?.name || '').toLowerCase().includes(q)
+      );
+    });
+  }, [vehicles, customers, searchQuery]);
+
+  const displayedVehicles = filteredVehicles.slice(0, displayLimit);
+  const hasMore = filteredVehicles.length > displayLimit;
 
   return (
     <AppLayout>
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
         <div>
           <h1 className="text-4xl font-display tracking-tight">Kendaraan</h1>
-          <p className="text-muted-foreground mt-1">{vehicles.length} kendaraan terdaftar</p>
+          <p className="text-muted-foreground mt-1">{filteredVehicles.length} kendaraan ditemukan</p>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="hidden md:flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-snappy"
-        >
-          <Plus className="w-4 h-4" /> Tambah Kendaraan
-        </button>
+        <div className="flex flex-col md:flex-row items-center gap-4">
+          <div className="relative w-full md:w-64">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Cari plat, merek, pemilik..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 rounded-xl bg-secondary/50 border border-border/50 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+            />
+          </div>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="hidden md:flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-snappy"
+          >
+            <Plus className="w-4 h-4" /> Tambah Kendaraan
+          </button>
+        </div>
       </div>
 
       {/* FAB Mobile */}
@@ -220,34 +341,67 @@ const VehiclesPage = () => {
         <Plus className="w-7 h-7" />
       </button>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {vehicles.map((v, i) => {
-          const owner = customers.find(c => c.id === v.customerId);
-          return (
-            <div key={v.id} onClick={() => setSelectedVehicle(v)} className="cursor-pointer">
-              <GlassCard className="hover:ring-2 hover:ring-primary/20 transition-all duration-300">
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.05 }}>
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="p-2.5 rounded-xl bg-accent/50 group-hover:bg-primary/10 transition-colors">
-                      <Car className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
+      {displayedVehicles.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {displayedVehicles.map((v, i) => {
+            const owner = customers.find(c => c.id === v.customerId);
+            return (
+              <div key={v.id} onClick={() => setSelectedVehicle(v)} className="cursor-pointer">
+                <GlassCard className="hover:ring-2 hover:ring-primary/20 transition-all duration-300">
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.05 }}>
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="p-2.5 rounded-xl bg-accent/50 group-hover:bg-primary/10 transition-colors">
+                        <Car className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                      </div>
+                      <span className="text-[11px] font-mono font-bold bg-primary/10 text-primary px-3 py-1 rounded-full uppercase tracking-wider">{v.plateNumber}</span>
                     </div>
-                    <span className="text-[11px] font-mono font-bold bg-primary/10 text-primary px-3 py-1 rounded-full uppercase tracking-wider">{v.plateNumber}</span>
-                  </div>
-                  <h3 className="text-lg font-bold truncate">{v.make} {v.model}</h3>
-                  <p className="text-[11px] text-muted-foreground uppercase font-medium tracking-wide">{v.year} · {v.mileage.toLocaleString()} km</p>
-                  <div className="mt-6 pt-4 border-t border-border/30 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full bg-secondary flex items-center justify-center text-[10px] font-bold">{owner?.name?.[0]}</div>
-                      <p className="text-[11px] text-muted-foreground font-medium">{owner?.name}</p>
+                    <h3 className="text-lg font-bold truncate">{v.make} {v.model}</h3>
+                    <p className="text-[11px] text-muted-foreground uppercase font-medium tracking-wide">{v.year} · {v.mileage.toLocaleString()} km</p>
+                    <div className="mt-6 pt-4 border-t border-border/30 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-secondary flex items-center justify-center text-[10px] font-bold">{owner?.name?.[0]}</div>
+                        <p className="text-[11px] text-muted-foreground font-medium">{owner?.name}</p>
+                      </div>
+                      <ChevronRight className="w-3.5 h-3.5 text-muted-foreground opacity-50" />
                     </div>
-                    <ChevronRight className="w-3.5 h-3.5 text-muted-foreground opacity-50" />
-                  </div>
-                </motion.div>
-              </GlassCard>
-            </div>
-          );
-        })}
-      </div>
+                  </motion.div>
+                </GlassCard>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="py-24 text-center">
+          <div className="w-20 h-20 rounded-3xl bg-secondary/30 flex items-center justify-center mx-auto mb-6 border border-border/20">
+            <Car className="w-10 h-10 text-muted-foreground/20" />
+          </div>
+          <h3 className="text-lg font-display font-bold text-muted-foreground mb-1">
+            {searchQuery ? "Kendaraan Tidak Ditemukan" : "Belum Ada Kendaraan"}
+          </h3>
+          <p className="text-sm text-muted-foreground mb-6">
+            {searchQuery ? `Tidak ada hasil untuk "${searchQuery}"` : "Daftarkan kendaraan pertama untuk memulai."}
+          </p>
+          {!searchQuery && (
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="px-6 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:opacity-90 transition-snappy shadow-lg shadow-primary/20"
+            >
+              <Plus className="w-4 h-4 inline mr-2" /> Tambah Kendaraan
+            </button>
+          )}
+        </div>
+      )}
+
+      {hasMore && (
+        <div className="mt-8 flex justify-center">
+          <button
+            onClick={() => setDisplayLimit(prev => prev + 12)}
+            className="px-8 py-2.5 rounded-xl bg-secondary text-foreground text-xs font-bold uppercase tracking-widest hover:bg-secondary/80 transition-all"
+          >
+            Muat Lebih Banyak
+          </button>
+        </div>
+      )}
 
       <AddVehicleModal open={showAddModal} onClose={() => setShowAddModal(false)} />
       <VehicleDetailsModal vehicle={selectedVehicle} open={!!selectedVehicle} onClose={() => setSelectedVehicle(null)} />

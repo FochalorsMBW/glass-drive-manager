@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
+import { get, set, del } from 'idb-keyval';
 import { 
   type ServiceOrder, type ServiceStatus, type Mechanic, type Vehicle, type Customer, type InventoryItem, type Expense, 
   type ServicePackage,
@@ -53,6 +54,7 @@ interface AppState {
   setSearchQuery: (query: string) => void;
   addServiceOrder: (order: ServiceOrder) => void;
   updateServiceOrderStatus: (id: string, status: ServiceStatus) => void;
+  deleteServiceOrder: (id: string) => void;
   updateServiceChecklist: (orderId: string, checklist: ServiceOrder['checklist']) => void;
   addInventoryItem: (item: InventoryItem) => void;
   updateInventoryStock: (id: string, delta: number) => void;
@@ -75,9 +77,33 @@ interface AppState {
   deleteMechanic: (id: string) => void;
   processPayout: (payout: Payout) => void;
   restockItem: (itemId: string, quantity: number, notes?: string) => void;
+  updateCustomer: (customer: Customer) => void;
+  deleteCustomer: (id: string) => void;
+  updateVehicle: (vehicle: Vehicle) => void;
+  deleteVehicle: (id: string) => void;
+  updateInventoryItem: (item: InventoryItem) => void;
+  deleteInventoryItem: (id: string) => void;
   resetData: () => void;
+  loadBackup: (data: any) => void;
+  pruneArchivedData: (beforeDate: Date) => {
+    archivedOrders: ServiceOrder[];
+    archivedTransactions: Transaction[];
+    archivedExpenses: Expense[];
+  };
 }
 
+// Custom IndexedDB storage for Zustand to bypass localStorage 5MB limit
+const idbStorage: StateStorage = {
+  getItem: async (name: string): Promise<string | null> => {
+    return (await get(name)) || null;
+  },
+  setItem: async (name: string, value: string): Promise<void> => {
+    await set(name, value);
+  },
+  removeItem: async (name: string): Promise<void> => {
+    await del(name);
+  },
+};
 
 export const useAppStore = create<AppState>()(
   persist(
@@ -125,13 +151,86 @@ export const useAppStore = create<AppState>()(
 
       updateServiceOrderStatus: (id, status) => set((state) => {
         let updatedCustomers = [...state.customers];
+        let updatedInventory = [...state.inventory];
+        let updatedLogs = [...state.inventoryLogs];
         const order = state.serviceOrders.find(o => o.id === id);
         
+        // F3: Timestamp Recording
+        let newStartedAt = order?.startedAt;
+        let newCompletedAt = order?.completedAt;
+
+        if (status === 'in_progress' && order?.status === 'queued') {
+          newStartedAt = new Date().toISOString();
+        } else if (status === 'completed' && order?.status === 'in_progress') {
+          newCompletedAt = new Date().toISOString();
+        }
+        
+        // --- Integrity Management: Stock Logic ---
+        // 1. Deduct stock when order starts processing (queued -> in_progress)
+        if (status === 'in_progress' && order?.status === 'queued' && order.items) {
+          order.items.forEach((orderItem: any) => {
+            const invIdx = updatedInventory.findIndex(i => i.name === orderItem.name);
+            if (invIdx !== -1) {
+              const prev = updatedInventory[invIdx].stock;
+              const newStock = Math.max(0, prev - (orderItem.qty || 1));
+              updatedInventory[invIdx] = { ...updatedInventory[invIdx], stock: newStock };
+              updatedLogs = [{
+                id: `LOG-SRV-${Date.now()}-${invIdx}`,
+                itemId: updatedInventory[invIdx].id,
+                type: 'usage' as const,
+                quantity: -(orderItem.qty || 1),
+                previousStock: prev,
+                newStock,
+                date: new Date().toISOString(),
+                notes: `Usage via Service Order ${id} (In Progress)`
+              }, ...updatedLogs];
+            }
+          });
+        }
+        
+        // 2. Return stock if order is rolled back (in_progress -> queued)
+        if (status === 'queued' && order?.status === 'in_progress' && order.items) {
+          order.items.forEach((orderItem: any) => {
+            const invIdx = updatedInventory.findIndex(i => i.name === orderItem.name);
+            if (invIdx !== -1) {
+              const prev = updatedInventory[invIdx].stock;
+              const newStock = prev + (orderItem.qty || 1);
+              updatedInventory[invIdx] = { ...updatedInventory[invIdx], stock: newStock };
+              updatedLogs = [{
+                id: `LOG-SRV-RTN-${Date.now()}-${invIdx}`,
+                itemId: updatedInventory[invIdx].id,
+                type: 'restock' as const,
+                quantity: (orderItem.qty || 1),
+                previousStock: prev,
+                newStock,
+                date: new Date().toISOString(),
+                notes: `Stock returned: Order ${id} moved back to Queue`
+              }, ...updatedLogs];
+            }
+          });
+        }
+
         if (status === 'paid' && order) {
-          // Auto-calculate next service date (4 months from now)
+          // E1: Predictive Maintenance Algorithm
+          const vehicleHistory = state.serviceOrders
+            .filter(o => o.vehicleId === order.vehicleId && o.status === 'paid' && o.id !== id)
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+          let nextServiceDays = 120; // Fallback: 4 bulan
+
+          if (vehicleHistory.length > 0) {
+            const lastService = vehicleHistory[0];
+            const msDiff = new Date(order.createdAt).getTime() - new Date(lastService.createdAt).getTime();
+            const daysDiff = Math.floor(msDiff / (1000 * 60 * 60 * 24));
+            
+            if (daysDiff > 10) {
+              nextServiceDays = daysDiff;
+            }
+          }
+
           const nextDate = new Date();
-          nextDate.setMonth(nextDate.getMonth() + 4);
-          
+          nextDate.setDate(nextDate.getDate() + nextServiceDays);
+
           updatedCustomers = state.customers.map(c => 
             c.id === order.customer.id 
               ? { ...c, nextServiceDate: nextDate.toISOString() } 
@@ -140,8 +239,10 @@ export const useAppStore = create<AppState>()(
         }
 
         return {
-          serviceOrders: state.serviceOrders.map((o) => o.id === id ? { ...o, status } : o),
+          serviceOrders: state.serviceOrders.map((o) => o.id === id ? { ...o, status, startedAt: newStartedAt, completedAt: newCompletedAt } : o),
           customers: updatedCustomers,
+          inventory: updatedInventory,
+          inventoryLogs: updatedLogs,
           activities: [{
             id: Date.now().toString(),
             type: 'order',
@@ -155,6 +256,46 @@ export const useAppStore = create<AppState>()(
         serviceOrders: state.serviceOrders.map(o => o.id === orderId ? { ...o, checklist } : o)
       })),
 
+      deleteServiceOrder: (id) => set((state) => {
+        const order = state.serviceOrders.find(o => o.id === id);
+        let updatedInventory = [...state.inventory];
+        let updatedLogs = [...state.inventoryLogs];
+        
+        // Return stock if it was already deducted (status is in_progress, completed, or paid)
+        if (order && order.status !== 'queued' && order.items) {
+          order.items.forEach((item: any) => {
+            const invIdx = updatedInventory.findIndex(i => i.name === item.name);
+            if (invIdx !== -1) {
+              const prev = updatedInventory[invIdx].stock;
+              const newStock = prev + (item.qty || 1);
+              updatedInventory[invIdx] = { ...updatedInventory[invIdx], stock: newStock };
+              updatedLogs = [{
+                id: `LOG-SRV-DEL-${Date.now()}-${invIdx}`,
+                itemId: updatedInventory[invIdx].id,
+                type: 'restock' as const,
+                quantity: (item.qty || 1),
+                previousStock: prev,
+                newStock,
+                date: new Date().toISOString(),
+                notes: `Stock returned: Order ${id} deleted`
+              }, ...updatedLogs];
+            }
+          });
+        }
+
+        return {
+          serviceOrders: state.serviceOrders.filter(o => o.id !== id),
+          inventory: updatedInventory,
+          inventoryLogs: updatedLogs,
+          activities: [{
+            id: Date.now().toString(),
+            type: 'order' as const,
+            message: `Pesanan ${id} telah dihapus${order?.status !== 'queued' ? ' (Stok dikembalikan)' : ''}`,
+            timestamp: new Date().toISOString()
+          }, ...state.activities]
+        };
+      }),
+
       addInventoryItem: (item) => set((state) => ({ 
         inventory: [...state.inventory, item],
         activities: [{
@@ -166,11 +307,11 @@ export const useAppStore = create<AppState>()(
       })),
 
       updateInventoryStock: (id, delta) => set((state) => ({
-        inventory: state.inventory.map((i) => i.id === id ? { ...i, stock: i.stock + delta } : i)
+        inventory: state.inventory.map((i) => i.id === id ? { ...i, stock: Math.max(0, i.stock + delta) } : i)
       })),
 
       updateStock: (id, newStock) => set((state) => ({
-        inventory: state.inventory.map((i) => i.id === id ? { ...i, stock: newStock } : i)
+        inventory: state.inventory.map((i) => i.id === id ? { ...i, stock: Math.max(0, newStock) } : i)
       })),
 
       addCustomer: (customer) => set((state) => ({ 
@@ -278,16 +419,49 @@ export const useAppStore = create<AppState>()(
         };
       }),
 
-      addSaleTransaction: (trx) => set((state) => ({
-        transactions: [trx, ...state.transactions],
-        receiptCounter: state.receiptCounter + 1,
-        activities: [{
-          id: Date.now().toString(),
-          type: 'finance',
-          message: `Transaksi POS ${trx.receiptNumber} — ${trx.method} ${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(trx.total)}`,
-          timestamp: new Date().toISOString()
-        }, ...state.activities]
-      })),
+      addSaleTransaction: (trx) => set((state) => {
+        // --- Enterprise Integritas: Avoid Double Stock Deduction ---
+        // If this transaction is linked to a Service Order, stock was ALREADY deducted 
+        // when status became 'in_progress' in `updateServiceOrderStatus`.
+        const skipDeduction = !!trx.linkedOrderId;
+        
+        let updatedInventory = [...state.inventory];
+        let updatedLogs = [...state.inventoryLogs];
+        
+        if (!skipDeduction) {
+          trx.items.forEach((item: any) => {
+            const invIdx = updatedInventory.findIndex(i => i.name === item.name);
+            if (invIdx !== -1) {
+              const prev = updatedInventory[invIdx].stock;
+              const newStock = Math.max(0, prev - (item.qty || 1));
+              updatedInventory[invIdx] = { ...updatedInventory[invIdx], stock: newStock };
+              updatedLogs = [{
+                id: `LOG-POS-${Date.now()}-${invIdx}`,
+                itemId: updatedInventory[invIdx].id,
+                type: 'usage' as const,
+                quantity: -(item.qty || 1),
+                previousStock: prev,
+                newStock,
+                date: new Date().toISOString(),
+                notes: `Terjual via POS (Retail) ${trx.receiptNumber}`
+              }, ...updatedLogs];
+            }
+          });
+        }
+
+        return {
+          transactions: [trx, ...state.transactions],
+          receiptCounter: state.receiptCounter + 1,
+          inventory: updatedInventory,
+          inventoryLogs: updatedLogs,
+          activities: [{
+            id: Date.now().toString(),
+            type: 'finance',
+            message: `Transaksi POS ${trx.receiptNumber} — ${trx.method} ${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(trx.total)}`,
+            timestamp: new Date().toISOString()
+          }, ...state.activities]
+        };
+      }),
 
       addLoyaltyPoints: (customerId, points) => set((state) => ({
         customers: state.customers.map(c => 
@@ -338,6 +512,51 @@ export const useAppStore = create<AppState>()(
           }, ...state.activities]
         };
       }),
+
+      updateCustomer: (customer) => set((state) => ({
+        customers: state.customers.map(c => c.id === customer.id ? customer : c)
+      })),
+
+      deleteCustomer: (id) => set((state) => ({
+        customers: state.customers.filter(c => c.id !== id),
+        vehicles: state.vehicles.filter(v => v.customerId !== id),
+        serviceOrders: state.serviceOrders.filter(o => o.customer.id !== id),
+        activities: [{
+          id: Date.now().toString(),
+          type: 'customer',
+          message: `Pelanggan & data terkait (kendaraan/pesanan) dihapus`,
+          timestamp: new Date().toISOString()
+        }, ...state.activities]
+      })),
+
+      updateVehicle: (vehicle) => set((state) => ({
+        vehicles: state.vehicles.map(v => v.id === vehicle.id ? vehicle : v)
+      })),
+
+      deleteVehicle: (id) => set((state) => ({
+        vehicles: state.vehicles.filter(v => v.id !== id),
+        serviceOrders: state.serviceOrders.filter(o => o.vehicle.id !== id),
+        activities: [{
+          id: Date.now().toString(),
+          type: 'customer',
+          message: `Kendaraan & riwayat pesanan dihapus`,
+          timestamp: new Date().toISOString()
+        }, ...state.activities]
+      })),
+
+      updateInventoryItem: (item) => set((state) => ({
+        inventory: state.inventory.map(i => i.id === item.id ? item : i)
+      })),
+
+      deleteInventoryItem: (id) => set((state) => ({
+        inventory: state.inventory.filter(i => i.id !== id),
+        activities: [{
+          id: Date.now().toString(),
+          type: 'inventory',
+          message: `Item inventaris dihapus`,
+          timestamp: new Date().toISOString()
+        }, ...state.activities]
+      })),
       
       resetData: () => set({
         serviceOrders: initialOrders,
@@ -368,10 +587,37 @@ export const useAppStore = create<AppState>()(
           waApiKey: "",
         },
       }),
+
+      loadBackup: (data) => set(() => ({
+        ...data
+      })),
+
+      pruneArchivedData: (beforeDate: Date) => {
+        let archivedOrders: ServiceOrder[] = [];
+        let archivedTransactions: Transaction[] = [];
+        let archivedExpenses: Expense[] = [];
+
+        set((state) => {
+          archivedOrders = state.serviceOrders.filter(o => new Date(o.createdAt) < beforeDate);
+          archivedTransactions = state.transactions.filter(t => new Date(t.date) < beforeDate);
+          archivedExpenses = state.expenses.filter(e => new Date(e.date) < beforeDate);
+
+          return {
+            serviceOrders: state.serviceOrders.filter(o => new Date(o.createdAt) >= beforeDate),
+            transactions: state.transactions.filter(t => new Date(t.date) >= beforeDate),
+            expenses: state.expenses.filter(e => new Date(e.date) >= beforeDate),
+            activities: state.activities.filter(a => new Date(a.timestamp) >= beforeDate),
+            payouts: state.payouts.filter(p => new Date(p.date) >= beforeDate),
+          };
+        });
+
+        return { archivedOrders, archivedTransactions, archivedExpenses };
+      },
     }),
 
     {
       name: 'workshop-storage',
+      storage: createJSONStorage(() => idbStorage),
     }
   )
 );

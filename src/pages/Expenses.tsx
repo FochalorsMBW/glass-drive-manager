@@ -1,10 +1,10 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { useAppStore } from "@/hooks/useAppStore";
-import { Plus, Trash2, Calendar, Tag, Wallet, Receipt, Filter } from "lucide-react";
+import { Plus, Trash2, Calendar, Wallet, Receipt } from "lucide-react";
 import { formatCurrency } from "@/lib/mock-data";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -17,7 +17,7 @@ const ExpensesPage = () => {
   const [amount, setAmount] = useState<number>(0);
   const [category, setCategory] = useState("Operasional");
 
-  const categories = ["Operasional", "Gaji", "Sewa", "Listrik & Air", "Alat & Perlengkapan", "Lain-lain"];
+  const categories = ["Operasional", "Gaji/Komisi", "Sewa", "Listrik & Air", "Alat & Perlengkapan", "Lain-lain"];
 
   const handleAdd = () => {
     if (!description.trim()) { toast.error("Deskripsi harus diisi"); return; }
@@ -39,6 +39,26 @@ const ExpensesPage = () => {
 
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
 
+  // Category breakdown
+  const categoryBreakdown = useMemo(() => {
+    const map = new Map<string, number>();
+    expenses.forEach(e => {
+      map.set(e.category, (map.get(e.category) || 0) + e.amount);
+    });
+    return Array.from(map.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4);
+  }, [expenses]);
+
+  const categoryColors: Record<string, string> = {
+    "Operasional": "bg-info/10 text-info border-info/20",
+    "Gaji/Komisi": "bg-primary/10 text-primary border-primary/20",
+    "Sewa": "bg-warning/10 text-warning border-warning/20",
+    "Listrik & Air": "bg-success/10 text-success border-success/20",
+    "Alat & Perlengkapan": "bg-secondary text-foreground border-border/30",
+    "Lain-lain": "bg-muted text-muted-foreground border-border/30",
+  };
+
   return (
     <AppLayout>
       <div className="flex items-center justify-between mb-8">
@@ -54,73 +74,87 @@ const ExpensesPage = () => {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <GlassCard className="md:col-span-1">
-          <div className="p-6">
-            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Total Pengeluaran</p>
-            <p className="text-3xl font-display text-primary">{formatCurrency(totalExpenses)}</p>
-            <div className="mt-4 flex items-center gap-2 text-[10px] text-muted-foreground">
-              <Calendar className="w-3 h-3" /> Periode ini
-            </div>
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+        <GlassCard className="md:col-span-1 border-primary/20 bg-primary/5">
+          <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-2">Total Pengeluaran</p>
+          <p className="text-2xl font-display font-bold">{formatCurrency(totalExpenses)}</p>
+          <div className="mt-3 flex items-center gap-1.5 text-[10px] text-muted-foreground">
+            <Calendar className="w-3 h-3" /> Semua Periode
           </div>
         </GlassCard>
 
-        <div className="md:col-span-3">
-          <GlassCard className="h-full overflow-hidden">
-            <div className="p-0 overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-border/30 bg-secondary/20">
-                    <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Tanggal</th>
-                    <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Kategori</th>
-                    <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Deskripsi</th>
-                    <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-muted-foreground text-right">Nominal</th>
-                    <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-muted-foreground text-right w-16"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/20">
-                  {expenses.length > 0 ? (
-                    expenses.map((e, i) => (
-                      <motion.tr 
-                        key={e.id}
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: i * 0.05 }}
-                        className="hover:bg-secondary/10 transition-colors group"
-                      >
-                        <td className="p-4 text-xs font-mono text-muted-foreground">
-                          {new Date(e.date).toLocaleDateString('id-ID')}
-                        </td>
-                        <td className="p-4">
-                          <span className="px-2.5 py-1 rounded-lg bg-secondary text-[10px] font-bold uppercase tracking-tighter">
-                            {e.category}
-                          </span>
-                        </td>
-                        <td className="p-4 text-sm font-medium">{e.description}</td>
-                        <td className="p-4 text-sm font-mono font-bold text-right">{formatCurrency(e.amount)}</td>
-                        <td className="p-4 text-right">
-                          <button 
-                            onClick={() => deleteExpense(e.id)}
-                            className="p-1.5 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive opacity-0 group-hover:opacity-100 transition-all"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </motion.tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={5} className="p-12 text-center text-muted-foreground italic text-sm">
-                        Belum ada catatan pengeluaran.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </GlassCard>
-        </div>
+        {categoryBreakdown.map(([cat, total]) => (
+          <div key={cat} className={cn("p-4 rounded-2xl border transition-all", categoryColors[cat] || "bg-secondary text-foreground border-border/30")}>
+            <p className="text-[10px] font-black uppercase tracking-widest opacity-70 mb-2">{cat}</p>
+            <p className="text-lg font-mono font-bold">{formatCurrency(total)}</p>
+            <p className="text-[9px] mt-2 opacity-50 font-bold">{((total / totalExpenses) * 100).toFixed(0)}% dari total</p>
+          </div>
+        ))}
       </div>
+
+      {/* Table */}
+      <GlassCard className="overflow-hidden">
+        <div className="p-0 overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-border/30 bg-secondary/20">
+                <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Tanggal</th>
+                <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Kategori</th>
+                <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Deskripsi</th>
+                <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-muted-foreground text-right">Nominal</th>
+                <th className="p-4 text-[10px] font-bold uppercase tracking-widest text-muted-foreground text-right w-16"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/20">
+              {expenses.length > 0 ? (
+                expenses.map((e, i) => (
+                  <motion.tr 
+                    key={e.id}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.03 }}
+                    className="hover:bg-secondary/10 transition-colors group"
+                  >
+                    <td className="p-4 text-xs font-mono text-muted-foreground">
+                      {new Date(e.date).toLocaleDateString('id-ID')}
+                    </td>
+                    <td className="p-4">
+                      <span className={cn("px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-tighter border", categoryColors[e.category] || "bg-secondary text-foreground border-border/30")}>
+                        {e.category}
+                      </span>
+                    </td>
+                    <td className="p-4 text-sm font-medium">{e.description}</td>
+                    <td className="p-4 text-sm font-mono font-bold text-right">{formatCurrency(e.amount)}</td>
+                    <td className="p-4 text-right">
+                      <button 
+                        onClick={() => deleteExpense(e.id)}
+                        className="p-1.5 rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive opacity-0 group-hover:opacity-100 transition-all"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </motion.tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={5} className="py-20 text-center">
+                    <Receipt className="w-12 h-12 mx-auto mb-4 text-muted-foreground/15" />
+                    <p className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Belum Ada Pengeluaran</p>
+                    <p className="text-xs text-muted-foreground mt-1">Catat pengeluaran pertama untuk memulai pencatatan keuangan.</p>
+                    <button 
+                      onClick={() => setIsAdding(true)}
+                      className="mt-4 px-5 py-2 rounded-xl bg-primary/10 text-primary text-[10px] font-black uppercase hover:bg-primary/20 transition-all"
+                    >
+                      Catat Sekarang
+                    </button>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </GlassCard>
 
       <AnimatePresence>
         {isAdding && (

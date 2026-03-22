@@ -2,11 +2,13 @@ import React, { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { useAppStore } from "@/hooks/useAppStore";
-import { Star, Plus, X, Calendar, AlertCircle, Search } from "lucide-react";
+import { Star, Plus, X, Calendar, AlertCircle, Search, TrendingUp } from "lucide-react";
 // ... (rest of imports)
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { formatCurrency } from "@/lib/mock-data";
 
 const AddCustomerModal = ({ open, onClose }: { open: boolean; onClose: () => void }) => {
   const { addCustomer } = useAppStore();
@@ -111,11 +113,38 @@ const AddCustomerModal = ({ open, onClose }: { open: boolean; onClose: () => voi
 };
 
 const CustomerDetailsModal = ({ open, onClose, customer }: { open: boolean; onClose: () => void; customer: any }) => {
-  const { vehicles, serviceOrders } = useAppStore();
+  const { vehicles, serviceOrders, updateCustomer, deleteCustomer } = useAppStore();
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editAddress, setEditAddress] = useState("");
+
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
   if (!open || !customer) return null;
 
   const ownedVehicles = vehicles.filter(v => v.customerId === customer.id);
   const history = serviceOrders.filter(o => o.customer?.id === customer.id || o.vehicle.customerId === customer.id);
+
+  // C3: Customer Insights
+  const totalSpend = history.filter(o => o.status === 'paid').reduce((sum, o) => sum + o.totalAmount, 0);
+  const avgOrderValue = history.length > 0 ? totalSpend / history.filter(o => o.status === 'paid').length : 0;
+
+  const startEdit = () => {
+    setEditName(customer.name);
+    setEditPhone(customer.phone);
+    setEditEmail(customer.email || "");
+    setEditAddress(customer.address || "");
+    setIsEditing(true);
+  };
+
+  const saveEdit = () => {
+    if (!editName.trim()) { toast.error("Nama harus diisi"); return; }
+    updateCustomer({ ...customer, name: editName, phone: editPhone, email: editEmail, address: editAddress });
+    toast.success("Data pelanggan berhasil diubah");
+    setIsEditing(false);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={onClose}>
@@ -149,16 +178,31 @@ const CustomerDetailsModal = ({ open, onClose, customer }: { open: boolean; onCl
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-4">
               <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Kontak</p>
-              <div className="space-y-3">
-                <div className="flex items-center gap-3 p-3 rounded-2xl bg-secondary/30">
-                  <div className="text-primary text-xs font-bold uppercase tracking-widest w-12 text-right">Telp</div>
-                  <div className="font-medium text-sm">{customer.phone}</div>
+              {isEditing ? (
+                <div className="space-y-3">
+                  <input value={editName} onChange={e => setEditName(e.target.value)} placeholder="Nama" className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border/50 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20" />
+                  <input value={editPhone} onChange={e => setEditPhone(e.target.value)} placeholder="Telepon" className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border/50 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/20" />
+                  <input value={editEmail} onChange={e => setEditEmail(e.target.value)} placeholder="Email" className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border/50 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20" />
+                  <input value={editAddress} onChange={e => setEditAddress(e.target.value)} placeholder="Alamat" className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border/50 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20" />
                 </div>
-                <div className="flex items-center gap-3 p-3 rounded-2xl bg-secondary/30">
-                  <div className="text-primary text-xs font-bold uppercase tracking-widest w-12 text-right">Email</div>
-                  <div className="font-medium text-sm">{customer.email || "—"}</div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 p-3 rounded-2xl bg-secondary/30">
+                    <div className="text-primary text-xs font-bold uppercase tracking-widest w-12 text-right">Telp</div>
+                    <div className="font-medium text-sm">{customer.phone}</div>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 rounded-2xl bg-secondary/30">
+                    <div className="text-primary text-xs font-bold uppercase tracking-widest w-12 text-right">Email</div>
+                    <div className="font-medium text-sm">{customer.email || "—"}</div>
+                  </div>
+                  {customer.address && (
+                    <div className="flex items-center gap-3 p-3 rounded-2xl bg-secondary/30">
+                      <div className="text-primary text-xs font-bold uppercase tracking-widest w-12 text-right">Alamat</div>
+                      <div className="font-medium text-sm">{customer.address}</div>
+                    </div>
+                  )}
                 </div>
-              </div>
+              )}
             </div>
             
             <div className="space-y-4">
@@ -212,14 +256,59 @@ const CustomerDetailsModal = ({ open, onClose, customer }: { open: boolean; onCl
               )}
             </div>
           </div>
+
+          {/* C3: Customer Insights Card */}
+          {history.length > 0 && (
+            <div className="p-4 rounded-2xl bg-primary/5 border border-primary/10 flex items-center gap-6">
+              <div className="flex-1">
+                <p className="text-[10px] font-black uppercase tracking-widest text-primary/60 mb-1">Total Belanja</p>
+                <p className="text-lg font-display font-bold text-primary">{formatCurrency(totalSpend)}</p>
+              </div>
+              <div className="flex-1">
+                <p className="text-[10px] font-black uppercase tracking-widest text-primary/60 mb-1">Rata-rata / Order</p>
+                <p className="text-lg font-display font-bold">{formatCurrency(avgOrderValue)}</p>
+              </div>
+              <div className="flex-1">
+                <p className="text-[10px] font-black uppercase tracking-widest text-primary/60 mb-1">Total Order</p>
+                <p className="text-lg font-display font-bold">{history.length}x</p>
+              </div>
+            </div>
+          )}
         </div>
 
-        <div className="p-6 border-t border-border/30 bg-secondary/5 flex justify-end">
-          <button onClick={onClose} className="px-6 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-snappy">
-            Tutup
+        <div className="p-6 border-t border-border/30 bg-secondary/5 flex items-center justify-between">
+          <button onClick={() => setShowDeleteConfirm(true)} className="px-4 py-2 rounded-xl bg-destructive/10 text-destructive text-xs font-bold border border-destructive/20 hover:bg-destructive/20 transition-all">
+            Hapus Pelanggan
           </button>
+          <div className="flex items-center gap-3">
+            {isEditing ? (
+              <>
+                <button onClick={() => setIsEditing(false)} className="px-5 py-2 rounded-xl bg-secondary text-sm font-medium hover:bg-secondary/80 transition-snappy">Batal</button>
+                <button onClick={saveEdit} className="px-5 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-bold hover:opacity-90 transition-snappy shadow-lg shadow-primary/20">Simpan</button>
+              </>
+            ) : (
+              <>
+                <button onClick={startEdit} className="px-5 py-2 rounded-xl bg-secondary text-sm font-bold hover:bg-secondary/80 transition-snappy border border-border/30">Edit</button>
+                <button onClick={onClose} className="px-5 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-snappy">Tutup</button>
+              </>
+            )}
+          </div>
         </div>
       </motion.div>
+
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={() => {
+          deleteCustomer(customer.id);
+          toast.success('Pelanggan berhasil dihapus');
+          onClose();
+        }}
+        title="Hapus Pelanggan"
+        message={`Apakah Anda yakin ingin menghapus "${customer.name}"? Semua data pelanggan akan hilang secara permanen.`}
+        confirmText="Ya, Hapus"
+        variant="danger"
+      />
     </div>
   );
 };

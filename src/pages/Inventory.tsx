@@ -2,11 +2,13 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { useAppStore } from "@/hooks/useAppStore";
 import { formatCurrency } from "@/lib/mock-data";
-import { Package, AlertTriangle, Plus, X, History, ArrowDown, ArrowUp } from "lucide-react";
+import { Package, AlertTriangle, Plus, X, History, ArrowDown, ArrowUp, Pencil, Trash2, Download } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useMemo, useEffect } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { exportCSV } from "@/lib/exportCSV";
 
 const RestockModal = ({ open, onClose, item }: { open: boolean; onClose: () => void; item: any }) => {
   const { restockItem } = useAppStore();
@@ -190,12 +192,43 @@ const AddPartModal = ({ open, onClose }: { open: boolean; onClose: () => void })
 };
 
 const InventoryPage = () => {
-  const { inventory, inventoryLogs } = useAppStore();
+  const { inventory, inventoryLogs, updateInventoryItem, deleteInventoryItem } = useAppStore();
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedRestockItem, setSelectedRestockItem] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [displayLimit, setDisplayLimit] = useState(12);
+  const [editingItem, setEditingItem] = useState<any>(null);
+  const [deleteTarget, setDeleteTarget] = useState<any>(null);
 
+  // Edit form state
+  const [editName, setEditName] = useState("");
+  const [editSku, setEditSku] = useState("");
+  const [editCategory, setEditCategory] = useState("");
+  const [editPrice, setEditPrice] = useState(0);
+  const [editCostPrice, setEditCostPrice] = useState(0);
+  const [editMinThreshold, setEditMinThreshold] = useState(5);
+  const [editSupplier, setEditSupplier] = useState("");
+
+  const startEdit = (item: any) => {
+    setEditName(item.name); setEditSku(item.sku); setEditCategory(item.category);
+    setEditPrice(item.price); setEditCostPrice(item.costPrice || 0);
+    setEditMinThreshold(item.minThreshold); setEditSupplier(item.supplier || '');
+    setEditingItem(item);
+  };
+
+  const saveEdit = () => {
+    if (!editName.trim()) { toast.error("Nama harus diisi"); return; }
+    updateInventoryItem({ ...editingItem, name: editName, sku: editSku, category: editCategory, price: editPrice, costPrice: editCostPrice, minThreshold: editMinThreshold, supplier: editSupplier });
+    toast.success("Item berhasil diubah");
+    setEditingItem(null);
+  };
+
+  const handleExportCSV = () => {
+    exportCSV('inventaris', ['SKU', 'Nama', 'Kategori', 'Stok', 'Min', 'Harga Jual', 'HPP', 'Supplier'],
+      inventory.map(i => [i.sku, i.name, i.category, i.stock, i.minThreshold, i.price, i.costPrice || 0, i.supplier || ''])
+    );
+    toast.success('CSV inventaris berhasil diunduh');
+  };
   const filteredInventory = useMemo(() => {
     return inventory.filter(item => 
       item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -227,6 +260,12 @@ const InventoryPage = () => {
             />
           </div>
           <button
+            onClick={handleExportCSV}
+            className="hidden md:flex items-center gap-2 px-4 py-2.5 rounded-xl bg-secondary text-sm font-medium border border-border/30 hover:bg-secondary/80 transition-snappy"
+          >
+            <Download className="w-4 h-4" /> Export CSV
+          </button>
+          <button
             onClick={() => setShowAddModal(true)}
             className="hidden md:flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-snappy"
           >
@@ -248,10 +287,12 @@ const InventoryPage = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {displayedInventory.map((item, i) => {
               const isLow = item.stock <= item.minThreshold;
+              const isOut = item.stock <= 0;
+              const isNegative = item.stock < 0;
               return (
                 <GlassCard key={item.id} className={cn(
                   "relative group transition-all duration-300",
-                  isLow ? "ring-2 ring-destructive/20 bg-destructive/5" : ""
+                  isNegative ? "ring-2 ring-destructive/20 bg-destructive/5" : (isLow ? "ring-2 ring-warning/20 bg-warning/5" : "")
                 )}>
                   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.04 }}>
                     <div className="flex items-start justify-between mb-3">
@@ -261,11 +302,27 @@ const InventoryPage = () => {
                       )}>
                         <Package className={cn("w-4 h-4", isLow ? "text-destructive" : "text-muted-foreground")} />
                       </div>
-                      {isLow && (
-                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-destructive/10 text-destructive text-[10px] font-bold uppercase tracking-wider animate-pulse">
-                          <AlertTriangle className="w-3 h-3" /> Low Stock
-                        </div>
-                      )}
+                      <div className="flex items-center gap-1">
+                        {isNegative ? (
+                          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-destructive text-white text-[10px] font-black uppercase tracking-wider animate-bounce shadow-lg shadow-destructive/40">
+                            <AlertTriangle className="w-3 h-3" /> STOK NEGATIF!
+                          </div>
+                        ) : isOut ? (
+                          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-destructive/10 text-destructive text-[10px] font-bold uppercase tracking-wider">
+                            <AlertTriangle className="w-3 h-3" /> HABIS
+                          </div>
+                        ) : isLow ? (
+                          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-warning/10 text-warning text-[10px] font-bold uppercase tracking-wider animate-pulse">
+                            <AlertTriangle className="w-3 h-3" /> Low Stock
+                          </div>
+                        ) : null}
+                        <button onClick={() => startEdit(item)} className="p-1.5 rounded-lg hover:bg-secondary opacity-0 group-hover:opacity-100 transition-all" title="Edit">
+                          <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+                        </button>
+                        <button onClick={() => setDeleteTarget(item)} className="p-1.5 rounded-lg hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-all" title="Hapus">
+                          <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                        </button>
+                      </div>
                     </div>
                     
                     <p className="text-xs font-mono text-muted-foreground mb-1 uppercase tracking-tight">{item.sku}</p>
@@ -366,6 +423,63 @@ const InventoryPage = () => {
         open={!!selectedRestockItem} 
         onClose={() => setSelectedRestockItem(null)} 
         item={selectedRestockItem} 
+      />
+
+      {/* Edit Modal */}
+      {editingItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setEditingItem(null)}>
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
+            className="bg-background border border-border/50 rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6"
+            onClick={e => e.stopPropagation()}
+          >
+            <h2 className="text-xl font-display mb-4">Edit Suku Cadang</h2>
+            <div className="space-y-3">
+              <input value={editName} onChange={e => setEditName(e.target.value)} placeholder="Nama" className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border/50 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20" />
+              <div className="grid grid-cols-2 gap-3">
+                <input value={editSku} onChange={e => setEditSku(e.target.value)} placeholder="SKU" className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border/50 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/20" />
+                <input value={editCategory} onChange={e => setEditCategory(e.target.value)} placeholder="Kategori" className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border/50 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-muted-foreground mb-1 block">HPP</label>
+                  <input type="number" value={editCostPrice} onChange={e => setEditCostPrice(Number(e.target.value))} className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border/50 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/20" />
+                </div>
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-muted-foreground mb-1 block">Harga Jual</label>
+                  <input type="number" value={editPrice} onChange={e => setEditPrice(Number(e.target.value))} className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border/50 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/20" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-muted-foreground mb-1 block">Min. Stok</label>
+                  <input type="number" value={editMinThreshold} onChange={e => setEditMinThreshold(Number(e.target.value))} className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border/50 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/20" />
+                </div>
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-muted-foreground mb-1 block">Supplier</label>
+                  <input value={editSupplier} onChange={e => setEditSupplier(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border/50 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20" />
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <button onClick={() => setEditingItem(null)} className="flex-1 py-2.5 rounded-lg bg-secondary text-sm font-medium hover:bg-secondary/80 transition-snappy">Batal</button>
+              <button onClick={saveEdit} className="flex-1 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-snappy">Simpan</button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          deleteInventoryItem(deleteTarget.id);
+          toast.success(`${deleteTarget.name} berhasil dihapus`);
+          setDeleteTarget(null);
+        }}
+        title="Hapus Suku Cadang"
+        message={`Apakah Anda yakin ingin menghapus "${deleteTarget?.name}"? Stok dan data harga akan hilang secara permanen.`}
+        confirmText="Ya, Hapus"
+        variant="danger"
       />
     </AppLayout>
   );

@@ -423,12 +423,7 @@ const POSPage = () => {
     // 2. Update revenue chart
     addTransaction(total);
 
-    // 3. Deduct inventory stock
-    cart.forEach(item => {
-      updateInventoryStock(item.id, -item.qty);
-    });
-
-    // 4. Update linked order status to 'paid'
+    // 3. Update linked order status to 'paid'
     if (linkedOrderId) {
       updateServiceOrderStatus(linkedOrderId, 'paid');
     }

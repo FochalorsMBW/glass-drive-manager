@@ -209,6 +209,75 @@ const MechanicFormModal = ({
   );
 };
 
+// F3: Mechanic Efficiency Leaderboard calculation
+function MechanicLeaderboard({ mechanics, orders }: { mechanics: Mechanic[], orders: ServiceOrder[] }) {
+  const stats = mechanics.map(m => {
+    const mOrders = orders.filter(o => o.mechanic.id === m.id && (o.status === 'completed' || o.status === 'paid') && o.startedAt && o.completedAt);
+    if (mOrders.length === 0) return { ...m, avgTimeMs: Infinity, jobsCount: 0 };
+    
+    let totalMs = 0;
+    mOrders.forEach(o => {
+      totalMs += (new Date(o.completedAt!).getTime() - new Date(o.startedAt!).getTime());
+    });
+    
+    return { ...m, avgTimeMs: totalMs / mOrders.length, jobsCount: mOrders.length };
+  }).filter(m => m.jobsCount > 0).sort((a, b) => a.avgTimeMs - b.avgTimeMs);
+
+  if (stats.length === 0) return null;
+
+  return (
+    <GlassCard className="mb-8 bg-gradient-to-br from-primary/5 to-transparent border-primary/20">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-xl font-display flex items-center gap-2">
+            <span className="text-2xl">⚡</span> Leaderboard Efisiensi SLA
+          </h2>
+          <p className="text-xs text-muted-foreground mt-1 tracking-tight">Rata-rata kecepatan penyelesaian servis mekanik berdasarkan waktu asli.</p>
+        </div>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {stats.slice(0, 3).map((stat, idx) => {
+          const mins = Math.floor(stat.avgTimeMs / 60000);
+          const secs = Math.floor((stat.avgTimeMs % 60000) / 1000);
+          const hrs = Math.floor(mins / 60);
+          const remMins = mins % 60;
+          const timeStr = hrs > 0 ? `${hrs}j ${remMins}m ${secs}s` : `${mins}m ${secs}s`;
+          
+          return (
+            <div key={stat.id} className={cn(
+              "p-4 rounded-2xl flex items-center gap-4 relative overflow-hidden transition-all hover:scale-[1.02]",
+              idx === 0 ? "bg-amber-500/10 border border-amber-500/30 shadow-[0_0_15px_rgba(245,158,11,0.15)]" :
+              idx === 1 ? "bg-slate-300/10 border border-slate-400/30" :
+              "bg-amber-700/10 border border-amber-700/30"
+            )}>
+              {idx === 0 && <div className="absolute -right-4 -top-4 text-7xl opacity-10">👑</div>}
+              <div className={cn(
+                "w-12 h-12 rounded-full flex items-center justify-center font-black text-xl z-10",
+                idx === 0 ? "bg-amber-500 text-amber-50" :
+                idx === 1 ? "bg-slate-300 text-slate-800" :
+                "bg-amber-700 text-amber-50"
+              )}>
+                #{idx + 1}
+              </div>
+              <div className="z-10 flex-1">
+                <p className="font-bold text-sm tracking-tight line-clamp-1">{stat.name}</p>
+                <div className="flex flex-col mt-0.5">
+                  <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">{stat.jobsCount} Pekerjaan</span>
+                  <span className="font-mono text-sm font-black text-primary mt-1">{timeStr} <span className="text-[10px] text-muted-foreground font-sans font-medium">/ order</span></span>
+                </div>
+              </div>
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 text-3xl opacity-20">
+                {stat.avatar}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </GlassCard>
+  );
+};
+
 const MechanicsPage = () => {
   const { mechanics, serviceOrders, settings, payouts, processPayout, addMechanic, updateMechanic, deleteMechanic } = useAppStore();
   const [selectedMechanic, setSelectedMechanic] = useState<Mechanic | null>(null);
@@ -282,6 +351,8 @@ const MechanicsPage = () => {
           Tambah Mekanik
         </button>
       </div>
+
+      {mechanics.length > 0 && <MechanicLeaderboard mechanics={mechanics} orders={serviceOrders} />}
 
       {mechanics.length === 0 ? (
         <GlassCard className="py-20 flex flex-col items-center justify-center text-center">

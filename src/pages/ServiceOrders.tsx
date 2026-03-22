@@ -1,11 +1,12 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useAppStore } from "@/hooks/useAppStore";
 import { formatCurrency, type ServiceOrder, type ServiceStatus, defaultSettings } from "@/lib/mock-data";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Clock, Wrench, CheckCircle2, CreditCard, X, ChevronRight, Download, MessageSquare, History, Search, MapPin, Phone, Calendar, User, AlertCircle, TrendingUp } from "lucide-react";
+import { Plus, Clock, Wrench, CheckCircle2, CreditCard, X, ChevronRight, Download, MessageSquare, History, Search, MapPin, Phone, Calendar, User, AlertCircle, TrendingUp, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 const columns: { status: ServiceStatus; label: string; icon: React.ElementType; color: string }[] = [
   { status: "queued", label: "Antrean", icon: Clock, color: "text-warning" },
@@ -19,6 +20,37 @@ const statusFlowLabels: Record<ServiceStatus, string | null> = {
   in_progress: "Selesai →",
   completed: "Lunas →",
   paid: null
+};
+
+// F3: Live Timer & Duration Calculation
+const LiveTimer = ({ startedAt }: { startedAt: string }) => {
+  const [elapsed, setElapsed] = useState("");
+
+  useEffect(() => {
+    const calc = () => {
+      const ms = Date.now() - new Date(startedAt).getTime();
+      const mins = Math.floor(ms / 60000);
+      const secs = Math.floor((ms % 60000) / 1000);
+      const hrs = Math.floor(mins / 60);
+      const remMins = mins % 60;
+      setElapsed(hrs > 0 ? `${hrs}j ${remMins}m ${secs}s` : `${mins}m ${secs}s`);
+    };
+    calc();
+    const int = setInterval(calc, 1000);
+    return () => clearInterval(int);
+  }, [startedAt]);
+
+  return <span className="font-mono text-[9px] bg-info text-info-foreground border border-info-foreground/20 px-1.5 py-0.5 rounded ml-2 whitespace-nowrap shadow-sm shadow-info/20 animate-pulse">⏱ {elapsed}</span>;
+};
+
+const FormatDuration = ({ startedAt, completedAt }: { startedAt: string, completedAt: string }) => {
+  const ms = new Date(completedAt).getTime() - new Date(startedAt).getTime();
+  const mins = Math.floor(ms / 60000);
+  const secs = Math.floor((ms % 60000) / 1000);
+  const hrs = Math.floor(mins / 60);
+  const remMins = mins % 60;
+  const timeStr = hrs > 0 ? `${hrs}h ${remMins}m ${secs}s` : `${mins}m ${secs}s`;
+  return <span className="font-mono text-[9px] text-success bg-success/10 px-1.5 py-0.5 rounded ml-2 whitespace-nowrap border border-success/20">Selesai: {timeStr}</span>;
 };
 
 const generateWALink = (order: ServiceOrder) => {
@@ -64,9 +96,20 @@ const sendGatewayNotification = async (order: ServiceOrder, settings: any) => {
 };
 
 const OrderDetailsModal = ({ order, open, onClose }: { order: ServiceOrder | null; open: boolean; onClose: () => void }) => {
-  const { serviceOrders, settings } = useAppStore();
+  const { serviceOrders, settings, inventory, deleteServiceOrder } = useAppStore();
   const [isDownloading, setIsDownloading] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   if (!order || !open) return null;
+
+  // Calculate profit margin (C4)
+  const itemsCOGS = (order.items || []).reduce((sum: number, oi: any) => {
+    const invItem = inventory.find(i => i.name === oi.name);
+    return sum + ((invItem?.costPrice || oi.price * 0.7) * oi.qty);
+  }, 0);
+  const commissionRate = settings.commissionRate || 20;
+  const commission = (order.laborCost * commissionRate) / 100;
+  const orderProfit = order.totalAmount - itemsCOGS - commission;
+  const profitMargin = order.totalAmount > 0 ? (orderProfit / order.totalAmount * 100) : 0;
 
   const history = serviceOrders
     .filter(o => o.vehicleId === order.vehicleId && o.id !== order.id && o.status === 'paid')
@@ -74,15 +117,76 @@ const OrderDetailsModal = ({ order, open, onClose }: { order: ServiceOrder | nul
 
   const handleDownload = () => {
     setIsDownloading(true);
-    toast.promise(
-      new Promise((resolve) => setTimeout(resolve, 2000)),
-      {
-        loading: 'Menghasilkan Invoice PDF...',
-        success: 'Invoice berhasil diunduh ke folder Downloads!',
-        error: 'Gagal mengunduh invoice.',
-      }
-    );
-    setTimeout(() => setIsDownloading(false), 2200);
+    const taxRate = settings.taxRate || 11;
+    const itemsTotal = (order.items || []).reduce((sum: number, i: any) => sum + i.price * i.qty, 0);
+    const subtotal = itemsTotal + order.laborCost;
+    const taxAmount = Math.round(subtotal * taxRate / 100);
+    const grandTotal = subtotal + taxAmount;
+
+    const invoiceHTML = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Invoice ${order.id}</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',system-ui,sans-serif;color:#1a1a2e;padding:40px;max-width:800px;margin:0 auto;font-size:13px}
+.header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:32px;padding-bottom:24px;border-bottom:3px solid #3b82f6}
+.logo{font-size:28px;font-weight:900;color:#3b82f6;letter-spacing:-1px}
+.logo-sub{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:3px}
+.inv-title{text-align:right}
+.inv-title h2{font-size:24px;color:#3b82f6;text-transform:uppercase;letter-spacing:2px}
+.inv-title p{font-size:11px;color:#888;margin-top:4px}
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:28px}
+.info-box{background:#f8fafc;padding:16px;border-radius:8px;border:1px solid #e2e8f0}
+.info-box h4{font-size:10px;text-transform:uppercase;letter-spacing:2px;color:#64748b;margin-bottom:10px}
+.info-box p{margin:3px 0;font-size:12px}
+.info-box .val{font-weight:700}
+table{width:100%;border-collapse:collapse;margin-bottom:24px}
+thead{background:#f1f5f9}
+th{text-align:left;padding:10px 12px;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#64748b;border-bottom:2px solid #e2e8f0}
+td{padding:10px 12px;border-bottom:1px solid #f1f5f9;font-size:12px}
+.right{text-align:right}
+.mono{font-family:'Courier New',monospace;font-weight:700}
+.summary{margin-left:auto;width:280px;margin-bottom:32px}
+.summary .row{display:flex;justify-content:space-between;padding:6px 0;font-size:12px}
+.summary .total{border-top:2px solid #3b82f6;padding-top:10px;margin-top:6px;font-size:16px;font-weight:900;color:#3b82f6}
+.terms{background:#f8fafc;padding:16px;border-radius:8px;border:1px solid #e2e8f0;font-size:11px;color:#64748b;line-height:1.7;white-space:pre-line}
+.terms h4{font-size:10px;text-transform:uppercase;letter-spacing:2px;color:#334155;margin-bottom:8px}
+.footer{text-align:center;margin-top:32px;font-size:10px;color:#94a3b8}
+@media print{body{padding:20px}button{display:none!important}}
+</style></head><body>
+<div class="header">
+  <div><div class="logo">${settings.workshopName || 'UB Service'}</div><div class="logo-sub">${settings.workshopAddress || ''}</div><div class="logo-sub">${settings.workshopPhone || ''}</div></div>
+  <div class="inv-title"><h2>Invoice</h2><p>${order.id}</p><p>${new Date(order.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p></div>
+</div>
+<div class="info-grid">
+  <div class="info-box"><h4>Pelanggan</h4><p class="val">${order.customer.name}</p><p>${order.customer.phone}</p></div>
+  <div class="info-box"><h4>Kendaraan</h4><p class="val">${order.vehicle.make} ${order.vehicle.model}</p><p>${order.vehicle.plateNumber} · ${order.vehicle.mileage?.toLocaleString() || '-'} KM</p></div>
+</div>
+<table>
+  <thead><tr><th>#</th><th>Item / Deskripsi</th><th class="right">Qty</th><th class="right">Harga</th><th class="right">Subtotal</th></tr></thead>
+  <tbody>
+    ${(order.items || []).map((item: any, idx: number) => `<tr><td>${idx + 1}</td><td>${item.name}</td><td class="right">${item.qty}</td><td class="right mono">Rp ${item.price.toLocaleString('id-ID')}</td><td class="right mono">Rp ${(item.price * item.qty).toLocaleString('id-ID')}</td></tr>`).join('')}
+    <tr><td>${(order.items || []).length + 1}</td><td>Biaya Jasa Mekanik (${order.mechanic.name})</td><td class="right">1</td><td class="right mono">Rp ${order.laborCost.toLocaleString('id-ID')}</td><td class="right mono">Rp ${order.laborCost.toLocaleString('id-ID')}</td></tr>
+  </tbody>
+</table>
+<div class="summary">
+  <div class="row"><span>Subtotal</span><span class="mono">Rp ${subtotal.toLocaleString('id-ID')}</span></div>
+  <div class="row"><span>PPN (${taxRate}%)</span><span class="mono">Rp ${taxAmount.toLocaleString('id-ID')}</span></div>
+  <div class="row total"><span>TOTAL</span><span>Rp ${grandTotal.toLocaleString('id-ID')}</span></div>
+</div>
+${settings.invoiceTerms ? `<div class="terms"><h4>Syarat & Ketentuan</h4>${settings.invoiceTerms}</div>` : ''}
+<div class="footer"><p>Terima kasih atas kepercayaan Anda · ${settings.workshopName || 'UB Service'}</p></div>
+<script>window.onload=()=>window.print()</script>
+</body></html>`;
+
+    const invoiceWindow = window.open('', '_blank');
+    if (invoiceWindow) {
+      invoiceWindow.document.write(invoiceHTML);
+      invoiceWindow.document.close();
+      toast.success('Invoice berhasil dibuat & siap dicetak!');
+    } else {
+      toast.error('Popup diblokir browser. Izinkan popup untuk mencetak invoice.');
+    }
+    setIsDownloading(false);
   };
 
   return (
@@ -210,6 +314,7 @@ const OrderDetailsModal = ({ order, open, onClose }: { order: ServiceOrder | nul
               </div>
             </section>
 
+            {/* Cost Summary Section */}
             <section className="space-y-4">
               <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Ringkasan Biaya</h3>
               <div className="space-y-3">
@@ -228,15 +333,37 @@ const OrderDetailsModal = ({ order, open, onClose }: { order: ServiceOrder | nul
                   <span className="text-primary font-mono">{formatCurrency(order.totalAmount)}</span>
                 </div>
               </div>
+
+              {/* Profit per-order (C4) */}
+              <div className="mt-3 p-3 rounded-xl bg-secondary/20 border border-border/20 space-y-2">
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>HPP Barang</span>
+                  <span className="font-mono">-{formatCurrency(itemsCOGS)}</span>
+                </div>
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>Komisi ({commissionRate}%)</span>
+                  <span className="font-mono">-{formatCurrency(commission)}</span>
+                </div>
+                <div className={cn("flex justify-between text-sm font-bold pt-2 border-t border-border/20", orderProfit >= 0 ? "text-success" : "text-destructive")}>
+                  <span className="flex items-center gap-1"><TrendingUp className="w-3.5 h-3.5" /> Estimasi Laba</span>
+                  <span className="font-mono">{formatCurrency(orderProfit)} ({profitMargin.toFixed(0)}%)</span>
+                </div>
+              </div>
             </section>
 
             <div className="flex flex-col gap-2 pt-4">
               <button 
-                onClick={() => window.print()}
+                onClick={handleDownload}
                 className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-secondary text-foreground text-sm font-bold border border-border/50 hover:bg-secondary/80 transition-snappy"
               >
                 <Download className="w-4 h-4" />
                 Cetak Invoice
+              </button>
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-destructive/10 text-destructive text-xs font-bold border border-destructive/20 hover:bg-destructive/20 transition-all"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Hapus Pesanan
               </button>
               {order.status !== 'paid' && (
                 <div className="flex flex-col gap-2">
@@ -385,8 +512,38 @@ const OrderDetailsModal = ({ order, open, onClose }: { order: ServiceOrder | nul
           </div>
         </div>
       </motion.div>
+
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={() => {
+          deleteServiceOrder(order.id);
+          toast.success('Pesanan berhasil dihapus');
+          onClose();
+        }}
+        title="Hapus Pesanan"
+        message={`Apakah Anda yakin ingin menghapus pesanan ${order.id}? Data pesanan akan hilang secara permanen.`}
+        confirmText="Ya, Hapus"
+        variant="danger"
+      />
     </div>
   );
+};
+
+// E2: Smart Upselling Rules Engine (Static Association)
+const UPSELL_RULES: Record<string, any[]> = {
+  "oli": [
+    { id: "up1", name: "Filter Oli Asli", price: 45000, qty: 1 },
+    { id: "up2", name: "Engine Flush", price: 65000, qty: 1 }
+  ],
+  "rem": [
+    { id: "up3", name: "Minyak Rem DOT-4", price: 55000, qty: 1 },
+    { id: "up4", name: "Pembersih Kampas", price: 35000, qty: 1 }
+  ],
+  "ac": [
+    { id: "up5", name: "Filter Kabin", price: 85000, qty: 1 },
+    { id: "up6", name: "Fogging Anti-Bakteri", price: 150000, qty: 1 }
+  ]
 };
 
 const NewOrderModal = ({ open, onClose }: { open: boolean; onClose: () => void }) => {
@@ -397,15 +554,35 @@ const NewOrderModal = ({ open, onClose }: { open: boolean; onClose: () => void }
   const [description, setDescription] = useState("");
   const [laborCost, setLaborCost] = useState(0);
 
+  // E2: Upselling States
+  const [recommendations, setRecommendations] = useState<any[]>([]);
+  const [additionalItems, setAdditionalItems] = useState<any[]>([]);
+
   const handlePackageChange = (id: string) => {
     setPackageId(id);
+    setAdditionalItems([]); // Reset additional items if package changes
     const pkg = servicePackages.find(p => p.id === id);
     if (pkg) {
       setDescription(pkg.description);
       setLaborCost(pkg.laborCost);
+      
+      // E2: Calculate Recommendations based on keywords
+      let recs: any[] = [];
+      Object.keys(UPSELL_RULES).forEach(key => {
+        if (pkg.name.toLowerCase().includes(key.toLowerCase()) || pkg.description.toLowerCase().includes(key.toLowerCase())) {
+          // Avoid duplicates
+          UPSELL_RULES[key].forEach(newItem => {
+            if (!recs.find(r => r.id === newItem.id) && !pkg.items.find((pi: any) => pi.name === newItem.name)) {
+              recs.push(newItem);
+            }
+          });
+        }
+      });
+      setRecommendations(recs);
     } else {
       setDescription("");
       setLaborCost(0);
+      setRecommendations([]);
     }
   };
 
@@ -420,6 +597,8 @@ const NewOrderModal = ({ open, onClose }: { open: boolean; onClose: () => void }
 
     const pkg = servicePackages.find(p => p.id === packageId);
     
+    const allItems = [...(pkg ? pkg.items : []), ...additionalItems];
+    
     const newOrder: ServiceOrder = {
       id: `SO-${Math.floor(1000 + Math.random() * 9000)}`,
       status: "queued",
@@ -430,9 +609,9 @@ const NewOrderModal = ({ open, onClose }: { open: boolean; onClose: () => void }
       mechanic,
       description,
       laborCost,
-      totalAmount: laborCost + (pkg?.items.reduce((sum, item) => sum + (item.price * item.qty), 0) || 0),
+      totalAmount: laborCost + allItems.reduce((sum, item) => sum + (item.price * item.qty), 0),
       createdAt: new Date().toISOString(),
-      items: pkg ? pkg.items : [],
+      items: allItems,
       notes: "",
       packageId: packageId || undefined
     };
@@ -441,6 +620,7 @@ const NewOrderModal = ({ open, onClose }: { open: boolean; onClose: () => void }
     toast.success("Pesanan layanan berhasil dibuat!");
     onClose();
     setVehicleId(""); setMechanicId(""); setPackageId(""); setDescription(""); setLaborCost(0);
+    setAdditionalItems([]); setRecommendations([]);
   };
 
   if (!open) return null;
@@ -505,6 +685,46 @@ const NewOrderModal = ({ open, onClose }: { open: boolean; onClose: () => void }
             </select>
           </div>
 
+          {/* E2: Smart Upselling UI */}
+          {recommendations.length > 0 && (
+            <div className="bg-primary/5 rounded-2xl p-4 border border-primary/20 shadow-inner">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-xl">💡</span>
+                <span className="text-xs font-black uppercase tracking-widest text-primary">Rekomendasi Pintar (Upsell)</span>
+              </div>
+              <div className="space-y-2">
+                {recommendations.map(item => {
+                  const isAdded = additionalItems.some(i => i.id === item.id);
+                  return (
+                    <div key={item.id} className={cn(
+                      "flex items-center justify-between p-3 rounded-xl border transition-all",
+                      isAdded ? "bg-primary/10 border-primary/30" : "bg-background border-border/50 hover:border-primary/30"
+                    )}>
+                      <div>
+                        <p className="text-sm font-bold">{item.name}</p>
+                        <p className="text-xs font-mono font-bold text-primary">+ Rp {item.price.toLocaleString()}</p>
+                      </div>
+                      <button 
+                        onClick={() => {
+                          if (isAdded) setAdditionalItems(prev => prev.filter(i => i.id !== item.id));
+                          else setAdditionalItems(prev => [...prev, item]);
+                        }}
+                        className={cn(
+                          "px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm",
+                          isAdded 
+                            ? "bg-destructive/10 text-destructive hover:bg-destructive/20" 
+                            : "bg-primary text-primary-foreground hover:opacity-90 shadow-primary/20"
+                        )}
+                      >
+                        {isAdded ? "Batal" : "Tambah"}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div>
             <label className="text-sm text-muted-foreground mb-1.5 block">Keluhan / Deskripsi Layanan</label>
             <textarea 
@@ -541,9 +761,31 @@ const NewOrderModal = ({ open, onClose }: { open: boolean; onClose: () => void }
 };
 
 const ServiceOrdersPage = () => {
-  const { serviceOrders: orders } = useAppStore();
+  const { serviceOrders } = useAppStore();
   const [showNewModal, setShowNewModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<ServiceOrder | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  // Virtual Pagination Limit State
+  const [paidDisplayLimit, setPaidDisplayLimit] = useState(10);
+
+  const orders = useMemo(() => {
+    // Apply search filter if searchQuery is not empty
+    let filteredOrders = serviceOrders;
+    if (searchQuery) {
+      const lowerCaseQuery = searchQuery.toLowerCase();
+      filteredOrders = serviceOrders.filter(order =>
+        order.id.toLowerCase().includes(lowerCaseQuery) ||
+        order.vehicle.plateNumber.toLowerCase().includes(lowerCaseQuery) ||
+        order.vehicle.make.toLowerCase().includes(lowerCaseQuery) ||
+        order.vehicle.model.toLowerCase().includes(lowerCaseQuery) ||
+        order.customer.name.toLowerCase().includes(lowerCaseQuery) ||
+        order.mechanic.name.toLowerCase().includes(lowerCaseQuery) ||
+        order.description.toLowerCase().includes(lowerCaseQuery) ||
+        order.items.some(item => item.name.toLowerCase().includes(lowerCaseQuery))
+      );
+    }
+    return filteredOrders;
+  }, [serviceOrders, searchQuery]);
 
   const OrderCard = ({ order }: { order: ServiceOrder }) => {
     const { updateServiceOrderStatus } = useAppStore();
@@ -617,6 +859,8 @@ const ServiceOrdersPage = () => {
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <span className="text-xs font-mono font-medium text-muted-foreground group-hover:text-primary transition-colors">{order.id}</span>
+            {order.status === 'in_progress' && order.startedAt && <LiveTimer startedAt={order.startedAt} />}
+            {(order.status === 'completed' || order.status === 'paid') && order.startedAt && order.completedAt && <FormatDuration startedAt={order.startedAt} completedAt={order.completedAt} />}
             {orderNotification && (
               <div 
                 className={cn(
@@ -702,7 +946,22 @@ const ServiceOrdersPage = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {columns.map(({ status, label, icon: Icon, color }) => {
-          const colOrders = orders.filter(o => o.status === status);
+          let colOrders = orders.filter(o => o.status === status);
+          
+          // Auto-sorting: For completed and paid, newest first
+          if (status === 'paid' || status === 'completed') {
+            colOrders = colOrders.sort((a, b) => {
+              const dateA = new Date(a.completedAt || a.createdAt).getTime();
+              const dateB = new Date(b.completedAt || b.createdAt).getTime();
+              return dateB - dateA;
+            });
+          }
+
+          // Smart Limit / Virtual Pagination for 'Lunas' (Paid) column
+          const isPaidCol = status === 'paid';
+          const displayedOrders = isPaidCol ? colOrders.slice(0, paidDisplayLimit) : colOrders;
+          const hasMorePaid = isPaidCol && colOrders.length > paidDisplayLimit;
+
           const bgClassName = {
             queued: "bg-warning/5",
             in_progress: "bg-info/5",
@@ -717,14 +976,26 @@ const ServiceOrdersPage = () => {
                 <span className="text-sm font-semibold tracking-tight">{label}</span>
                 <span className="ml-auto text-xs font-mono text-muted-foreground bg-background/50 px-1.5 py-0.5 rounded-full">{colOrders.length}</span>
               </div>
-              <div className="space-y-3 flex-1">
+              <div className="space-y-3 flex-1 flex flex-col">
                 <AnimatePresence mode="popLayout">
-                  {colOrders.map(order => (
+                  {displayedOrders.map(order => (
                     <OrderCard key={order.id} order={order} />
                   ))}
                 </AnimatePresence>
+                
+                {hasMorePaid && (
+                  <motion.button
+                    initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                    onClick={() => setPaidDisplayLimit(prev => prev + 10)}
+                    className="w-full py-3 mt-2 rounded-xl border border-dashed border-border/50 text-xs font-bold text-muted-foreground hover:text-primary hover:border-primary/30 hover:bg-primary/5 transition-all flex flex-col items-center justify-center gap-1 group"
+                  >
+                    <span>Tampilkan {Math.min(10, colOrders.length - paidDisplayLimit)} Riwayat Terdahulu</span>
+                    <ChevronRight className="w-3 h-3 rotate-90 opacity-50 group-hover:opacity-100 group-hover:translate-y-0.5 transition-all" />
+                  </motion.button>
+                )}
+
                 {colOrders.length === 0 && (
-                  <div className="py-12 px-4 text-center text-xs text-muted-foreground border border-dashed border-border/40 rounded-glass-inner bg-background/20">
+                  <div className="py-12 px-4 text-center text-xs text-muted-foreground border border-dashed border-border/40 rounded-glass-inner bg-background/20 mt-auto mb-auto">
                     Tidak ada pesanan di {label.toLowerCase()}
                   </div>
                 )}

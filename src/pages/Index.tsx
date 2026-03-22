@@ -4,7 +4,7 @@ import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 import { useAppStore } from "@/hooks/useAppStore";
 import { formatCurrency } from "@/lib/mock-data";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { TrendingUp, Wrench, Car, AlertTriangle, ArrowUpRight, Plus, ShoppingCart, History, UserPlus, DollarSign, Package, CheckCircle2, Activity } from "lucide-react";
+import { TrendingUp, Wrench, Car, AlertTriangle, ArrowUpRight, Plus, ShoppingCart, History, UserPlus, DollarSign, Package, CheckCircle2, Activity, CalendarClock, RotateCcw, MessageSquare, Download } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
@@ -53,7 +53,7 @@ const statusLabels: Record<string, string> = {
 };
 
 const Dashboard = () => {
-  const { serviceOrders, mechanics, inventory, activities, expenses, settings, transactions } = useAppStore();
+  const { serviceOrders, mechanics, inventory, activities, expenses, settings, transactions, customers, inventoryLogs } = useAppStore();
   const navigate = useNavigate();
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -156,6 +156,38 @@ const Dashboard = () => {
       return hours > 24;
     });
 
+    // Revenue change calculation
+    const yesterdayRev = trend.length >= 2 ? trend[trend.length - 2].revenue : 0;
+    const revenueChange = yesterdayRev > 0 ? ((revenue - yesterdayRev) / yesterdayRev * 100).toFixed(1) : null;
+
+    // Service Reminders
+    const now = new Date();
+    const sevenDaysFromNow = new Date();
+    sevenDaysFromNow.setDate(now.getDate() + 7);
+    const serviceReminders = customers.filter(c => {
+      if (!c.nextServiceDate) return false;
+      const nsd = new Date(c.nextServiceDate);
+      return nsd <= sevenDaysFromNow;
+    }).map(c => {
+      const nsd = new Date(c.nextServiceDate!);
+      const daysUntil = Math.ceil((nsd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      return { ...c, daysUntil };
+    }).sort((a, b) => a.daysUntil - b.daysUntil).slice(0, 4);
+
+    // Smart Reorder
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(now.getDate() - 30);
+    const smartReorder = lowStockItems.map(item => {
+      const usageLogs = (inventoryLogs || []).filter(
+        (l: any) => l.itemId === item.id && l.type === 'usage' && new Date(l.date) >= thirtyDaysAgo
+      );
+      const totalUsed = usageLogs.reduce((sum: number, l: any) => sum + Math.abs(l.quantity), 0);
+      const dailyUsage = totalUsed / 30;
+      const daysUntilOut = dailyUsage > 0 ? Math.round(item.stock / dailyUsage) : 999;
+      const suggestedQty = Math.max(item.minThreshold * 2, Math.ceil(dailyUsage * 30));
+      return { ...item, dailyUsage, daysUntilOut, suggestedQty };
+    }).filter(i => i.daysUntilOut < 30).sort((a, b) => a.daysUntilOut - b.daysUntilOut).slice(0, 4);
+
     return {
       todayRevenue: revenue,
       todayNetProfit: netProfit,
@@ -165,14 +197,121 @@ const Dashboard = () => {
       lowStockItems,
       activeOrders,
       completedToday,
-      agingOrders
+      agingOrders,
+      revenueChange,
+      serviceReminders,
+      smartReorder
     };
-  }, [serviceOrders, transactions, inventory, expenses, settings]);
+  }, [serviceOrders, transactions, inventory, expenses, settings, customers, inventoryLogs]);
 
-  const { todayRevenue, todayNetProfit, last7Days, weeklyRevenueTotal, lowStockCount, lowStockItems, activeOrders, completedToday, agingOrders } = dashboardData;
+  const { todayRevenue, todayNetProfit, last7Days, weeklyRevenueTotal, lowStockCount, lowStockItems, activeOrders, completedToday, agingOrders, revenueChange, serviceReminders, smartReorder } = dashboardData;
 
   const timeStr = currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const dateStr = currentTime.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+  // F4: Auto-Generate Purchase Order (PO) PDF
+  const handlePrintPO = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+    
+    if (smartReorder.length === 0) {
+      toast.error('Tidak ada barang yang perlu direorder saat ini.');
+      return;
+    }
+
+    const itemsHtml = smartReorder.map((item, i) => `
+      <tr style="border-bottom: 1px solid #e2e8f0;">
+        <td style="padding: 12px 8px;">${i + 1}</td>
+        <td style="padding: 12px 8px; font-weight: 600;">${item.name}</td>
+        <td style="padding: 12px 8px; opacity: 0.7; font-family: monospace;">${item.sku || '-'}</td>
+        <td style="padding: 12px 8px; text-align: center; color: #ef4444; font-weight: bold;">${item.stock}</td>
+        <td style="padding: 12px 8px; text-align: center; font-weight: 900; color: #0284c7;">${item.suggestedQty}</td>
+      </tr>
+    `).join('');
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Purchase Order (PO) - ${dateStr}</title>
+        <style>
+          body { font-family: system-ui, -apple-system, sans-serif; color: #171717; max-width: 800px; margin: 0 auto; padding: 40px; }
+          .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; border-bottom: 2px solid #0284c7; padding-bottom: 20px; }
+          .title { font-size: 28px; font-weight: 900; color: #0284c7; margin: 0 0 8px 0; letter-spacing: -0.5px; }
+          .subtitle { color: #737373; font-size: 14px; margin: 0; font-weight: 500; }
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
+          th { text-align: left; padding: 12px 8px; background-color: #f8fafc; color: #475569; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 2px solid #cbd5e1; }
+          .signatures { display: flex; justify-content: space-between; margin-top: 60px; padding: 0 20px; }
+          .sig-box { text-align: center; width: 180px; }
+          .sig-line { border-bottom: 1px solid #171717; margin-bottom: 8px; height: 80px; }
+          .footer { margin-top: 60px; padding-top: 20px; border-top: 1px dashed #cbd5e1; text-align: center; color: #94a3b8; font-size: 11px; }
+          @media print {
+            body { padding: 0; }
+            @page { margin: 2cm; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div>
+            <h1 class="title">PURCHASE ORDER</h1>
+            <p class="subtitle">No: PO-${Date.now().toString().slice(-6)} &nbsp;|&nbsp; Date: ${new Date().toLocaleDateString('id-ID')}</p>
+          </div>
+          <div style="text-align: right;">
+            <p style="margin: 0; font-weight: 800; font-size: 18px;">${settings.workshopName || 'UB Service'}</p>
+            <p style="margin: 4px 0 0 0; font-size: 12px; color: #737373; max-width: 200px;">${settings.workshopAddress || 'Sistem Enterprise Auto-Generated Document'}</p>
+          </div>
+        </div>
+        
+        <p style="font-size: 14px; margin-bottom: 24px; line-height: 1.6;">
+          Kepada Yth. Supplier,<br/>
+          Berikut adalah daftar pengajuan pemesanan suku cadang (restock) untuk keperluan operasional bengkel:
+        </p>
+        
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 5%">No</th>
+              <th style="width: 40%">Nama Suku Cadang</th>
+              <th style="width: 25%">SKU / Referensi</th>
+              <th style="width: 15%; text-align: center;">Sisa Stok</th>
+              <th style="width: 15%; text-align: center;">Order Qty</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsHtml}
+          </tbody>
+        </table>
+
+        <div class="signatures">
+          <div class="sig-box">
+            <div class="sig-line"></div>
+            <p style="margin:0; font-weight: bold; font-size: 12px;">Disiapkan Oleh</p>
+            <p style="margin:0; color: #737373; font-size: 11px;">Staf Inventaris</p>
+          </div>
+          <div class="sig-box">
+            <div class="sig-line"></div>
+            <p style="margin:0; font-weight: bold; font-size: 12px;">Disetujui Oleh</p>
+            <p style="margin:0; color: #737373; font-size: 11px;">Manager Bengkel</p>
+          </div>
+        </div>
+
+        <div class="footer">
+          <p>Dokumen ini dibuat secara otomatis oleh fitur AI Enterprise dari sistem ${settings.workshopName || 'UB Service'} Management System.</p>
+        </div>
+        
+        <script>
+          setTimeout(() => {
+            window.print();
+          }, 300);
+        </script>
+      </body>
+      </html>
+    `;
+    
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  };
 
   return (
     <AppLayout>
@@ -240,7 +379,7 @@ const Dashboard = () => {
         </GlassCard>
 
         <div className="lg:col-span-4 grid grid-cols-1 gap-5">
-          <KpiCard label="Omzet Hari Ini" value={todayRevenue} prefix="Rp " icon={TrendingUp} change="+12.3%" />
+          <KpiCard label="Omzet Hari Ini" value={todayRevenue} prefix="Rp " icon={TrendingUp} change={revenueChange ? `${Number(revenueChange) >= 0 ? '+' : ''}${revenueChange}%` : 'Hari Pertama'} />
           <KpiCard label="Laba Bersih Est." value={todayNetProfit} prefix="Rp " icon={DollarSign} change="Setelah Pajak/Biaya" />
         </div>
       </div>
@@ -391,6 +530,88 @@ const Dashboard = () => {
         </GlassCard>
       </div>
 
+      {/* Smart Features Row */}
+      {(serviceReminders.length > 0 || smartReorder.length > 0) && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
+          {/* Service Reminders */}
+          {serviceReminders.length > 0 && (
+            <GlassCard className="border-warning/20 bg-warning/5">
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-2">
+                  <CalendarClock className="w-4 h-4 text-warning" />
+                  <p className="text-sm font-bold tracking-tight">Pengingat Servis</p>
+                </div>
+                <span className="text-[10px] font-bold bg-warning/15 text-warning px-2 py-0.5 rounded-full border border-warning/20">{serviceReminders.length} Pelanggan</span>
+              </div>
+              <div className="space-y-2">
+                {serviceReminders.map(c => (
+                  <div key={c.id} className="flex items-center justify-between p-3 rounded-xl bg-background/60 border border-border/20 group hover:border-warning/30 transition-all">
+                    <div className="flex items-center gap-3">
+                      <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold", c.daysUntil <= 0 ? "bg-destructive/20 text-destructive" : "bg-warning/20 text-warning")}>
+                        {c.name.charAt(0)}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{c.name}</p>
+                        <p className={cn("text-[10px] font-bold uppercase tracking-wider", c.daysUntil <= 0 ? "text-destructive" : "text-warning")}>
+                          {c.daysUntil <= 0 ? `Terlambat ${Math.abs(c.daysUntil)} hari` : `${c.daysUntil} hari lagi`}
+                        </p>
+                      </div>
+                    </div>
+                    <a
+                      href={`https://wa.me/${c.phone.replace(/\D/g, '')}?text=${encodeURIComponent(`Halo ${c.name}, ini dari ${settings.workshopName || 'UB Service'}. Mengingatkan bahwa jadwal servis berkala kendaraan Anda sudah dekat. Silakan hubungi kami untuk booking servis. Terima kasih!`)}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="p-1.5 rounded-lg bg-success/10 text-success opacity-0 group-hover:opacity-100 transition-all hover:bg-success/20"
+                    >
+                      <MessageSquare className="w-4 h-4" />
+                    </a>
+                  </div>
+                ))}
+              </div>
+            </GlassCard>
+          )}
+
+          {/* Smart Reorder */}
+          {smartReorder.length > 0 && (
+            <GlassCard className="border-info/20 bg-info/5">
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-2">
+                  <RotateCcw className="w-4 h-4 text-info" />
+                  <p className="text-sm font-bold tracking-tight">Rekomendasi Restock</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button onClick={handlePrintPO} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-info text-info-foreground text-[10px] font-black uppercase tracking-widest hover:opacity-90 shadow-lg shadow-info/20 hover:scale-105 transition-all">
+                    <Download className="w-3.5 h-3.5" /> Cetak PO
+                  </button>
+                  <button onClick={() => navigate('/inventory')} className="hidden sm:block text-[10px] font-black uppercase tracking-widest text-info hover:underline">Inventaris</button>
+                </div>
+              </div>
+              <div className="space-y-2">
+                {smartReorder.map(item => (
+                  <div key={item.id} className="flex items-center justify-between p-3 rounded-xl bg-background/60 border border-border/20">
+                    <div className="flex items-center gap-3">
+                      <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center", item.daysUntilOut <= 3 ? "bg-destructive/15 text-destructive" : "bg-info/15 text-info")}>
+                        <Package className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{item.name}</p>
+                        <p className={cn("text-[10px] font-bold uppercase tracking-wider", item.daysUntilOut <= 3 ? "text-destructive" : "text-info")}>
+                          {item.daysUntilOut <= 0 ? 'Habis!' : `~${item.daysUntilOut} hari lagi habis`} · Sisa {item.stock}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs font-bold text-info">+{item.suggestedQty}</p>
+                      <p className="text-[9px] text-muted-foreground">Reorder</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </GlassCard>
+          )}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-5 mb-5">
         {/* Workshop Health Stats */}
         <GlassCard className="lg:col-span-1 border-info/20 bg-info/5">
@@ -433,7 +654,7 @@ const Dashboard = () => {
             <button onClick={() => navigate('/orders')} className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline">Semua Pesanan</button>
           </div>
           <div className="space-y-3">
-            {serviceOrders.slice(0, 4).map((order, i) => (
+            {serviceOrders.length > 0 ? serviceOrders.slice(0, 4).map((order, i) => (
               <motion.div
                 key={order.id}
                 initial={{ opacity: 0, y: 10 }}
@@ -464,7 +685,13 @@ const Dashboard = () => {
                   <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mt-0.5">{order.mechanic.name.split(' ')[0]}</p>
                 </div>
               </motion.div>
-            ))}
+            )) : (
+              <div className="py-12 text-center bg-secondary/10 rounded-2xl border border-dashed border-border/30">
+                <Car className="w-10 h-10 mx-auto mb-3 text-muted-foreground/20" />
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Belum Ada Pesanan</p>
+                <button onClick={() => navigate('/orders')} className="mt-3 text-[10px] font-black uppercase text-primary hover:underline">Buat Pesanan Baru</button>
+              </div>
+            )}
           </div>
         </GlassCard>
 
@@ -474,53 +701,64 @@ const Dashboard = () => {
             <p className="text-sm font-bold tracking-tight">Kapasitas Kerja Mekanik</p>
             <span className="text-[10px] font-bold text-muted-foreground uppercase">Live load</span>
           </div>
-          <div className="space-y-6">
-            {mechanics.map((m, i) => {
-              const activeJobs = serviceOrders.filter(o => o.mechanic.id === m.id && o.status === "in_progress").length;
-              const loadPercentage = Math.min(100, (activeJobs / 3) * 100); // 3 jobs is full load
-              return (
-                <div key={m.id} className="space-y-2 group">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary border border-primary/20 group-hover:scale-110 transition-transform">
-                        {m.avatar}
+          {mechanics.length > 0 ? (
+            <>
+              <div className="space-y-6">
+                {mechanics.map((m, i) => {
+                  const activeJobs = serviceOrders.filter(o => o.mechanic.id === m.id && o.status === "in_progress").length;
+                  const loadPercentage = Math.min(100, (activeJobs / 3) * 100);
+                  return (
+                    <div key={m.id} className="space-y-2 group">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary border border-primary/20 group-hover:scale-110 transition-transform">
+                            {m.avatar}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold truncate group-hover:text-primary transition-colors">{m.name.split(' ')[0]}</p>
+                            <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">{m.specialization}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className={cn(
+                            "text-[10px] font-black uppercase tracking-wider",
+                            activeJobs >= 3 ? "text-destructive" : activeJobs > 0 ? "text-info" : "text-success"
+                          )}>
+                            {activeJobs >= 3 ? "Full Load" : activeJobs > 0 ? `${activeJobs} Job` : "Standby"}
+                          </p>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-sm font-bold truncate group-hover:text-primary transition-colors">{m.name.split(' ')[0]}</p>
-                        <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest">{m.specialization}</p>
+                      <div className="h-1.5 w-full bg-secondary/50 rounded-full overflow-hidden border border-border/5">
+                        <motion.div 
+                          initial={{ width: 0 }}
+                          animate={{ width: `${loadPercentage}%` }}
+                          className={cn(
+                            "h-full rounded-full transition-all duration-1000",
+                            activeJobs >= 3 ? "bg-destructive" : activeJobs > 0 ? "bg-info" : "bg-success"
+                          )}
+                        />
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className={cn(
-                        "text-[10px] font-black uppercase tracking-wider",
-                        activeJobs >= 3 ? "text-destructive" : activeJobs > 0 ? "text-info" : "text-success"
-                      )}>
-                        {activeJobs >= 3 ? "Full Load" : activeJobs > 0 ? `${activeJobs} Job` : "Standby"}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="h-1.5 w-full bg-secondary/50 rounded-full overflow-hidden border border-border/5">
-                    <motion.div 
-                      initial={{ width: 0 }}
-                      animate={{ width: `${loadPercentage}%` }}
-                      className={cn(
-                        "h-full rounded-full transition-all duration-1000",
-                        activeJobs >= 3 ? "bg-destructive" : activeJobs > 0 ? "bg-info" : "bg-success"
-                      )}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <div className="mt-8 pt-6 border-t border-border/30">
-            <button 
-              onClick={() => navigate('/mechanics')}
-              className="w-full py-2 rounded-xl bg-secondary/50 hover:bg-secondary text-[10px] font-black uppercase tracking-widest transition-all"
-            >
-              Lihat Semua Mekanik
-            </button>
-          </div>
+                  );
+                })}
+              </div>
+              <div className="mt-8 pt-6 border-t border-border/30">
+                <button 
+                  onClick={() => navigate('/mechanics')}
+                  className="w-full py-2 rounded-xl bg-secondary/50 hover:bg-secondary text-[10px] font-black uppercase tracking-widest transition-all"
+                >
+                  Lihat Semua Mekanik
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="py-16 text-center">
+              <Wrench className="w-10 h-10 mx-auto mb-3 text-muted-foreground/15" />
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Belum Ada Mekanik</p>
+              <p className="text-[10px] text-muted-foreground mt-1">Daftarkan mekanik untuk melihat kapasitas kerja.</p>
+              <button onClick={() => navigate('/mechanics')} className="mt-4 px-5 py-2 rounded-xl bg-primary/10 text-primary text-[10px] font-black uppercase hover:bg-primary/20 transition-all">Tambah Mekanik</button>
+            </div>
+          )}
         </GlassCard>
       </div>
     </AppLayout>

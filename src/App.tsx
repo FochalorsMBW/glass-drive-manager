@@ -17,6 +17,7 @@ import Finance from "./pages/Finance";
 import Expenses from "./pages/Expenses";
 import Notifications from "./pages/Notifications";
 import Packages from "./pages/Packages";
+import { CommandPalette } from "./components/ui/CommandPalette";
 
 import { ThemeProvider } from "next-themes";
 const queryClient = new QueryClient();
@@ -28,7 +29,7 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <Routes>
+          <CommandPalette />          <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/orders" element={<ServiceOrders />} />
             <Route path="/vehicles" element={<Vehicles />} />

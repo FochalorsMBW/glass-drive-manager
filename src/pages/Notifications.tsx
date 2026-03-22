@@ -26,9 +26,18 @@ const NotificationsPage = () => {
 
   return (
     <AppLayout>
-      <div className="mb-8">
-        <h1 className="text-4xl font-display tracking-tight">Log Notifikasi</h1>
-        <p className="text-muted-foreground mt-1">Pantau status pengiriman pesan otomatis ke pelanggan.</p>
+      <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
+        <div>
+          <h1 className="text-4xl font-display tracking-tight">Log Notifikasi</h1>
+          <p className="text-muted-foreground mt-1">Pantau status pengiriman pesan otomatis ke pelanggan.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {[{label: 'Terkirim', status: 'sent', color: 'bg-success/10 text-success border-success/20'}, {label: 'Gagal', status: 'failed', color: 'bg-destructive/10 text-destructive border-destructive/20'}, {label: 'Menunggu', status: 'pending', color: 'bg-warning/10 text-warning border-warning/20'}].map(s => (
+            <div key={s.status} className={cn("px-3 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-widest", s.color)}>
+              {notifications.filter(n => n.status === s.status).length} {s.label}
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4">
@@ -99,8 +108,10 @@ const NotificationsPage = () => {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={6} className="py-20 text-center text-muted-foreground italic">
-                          Belum ada log pengiriman pesan.
+                        <td colSpan={6} className="py-20 text-center">
+                          <MessageSquare className="w-12 h-12 mx-auto mb-4 text-muted-foreground/15" />
+                          <p className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Belum Ada Log</p>
+                          <p className="text-xs text-muted-foreground mt-1">Kirim notifikasi pertama dari Papan Layanan.</p>
                         </td>
                       </tr>
                     )}
