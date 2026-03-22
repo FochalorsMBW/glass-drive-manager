@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef, type ReactNode } from "react";
 import { AppSidebar } from "./AppSidebar";
-import { Bell, Search, Menu, User, Car, Receipt, Package, Settings as SettingsIcon } from "lucide-react";
+import { Bell, Search, Menu, User, Car, Receipt, Package, Settings as SettingsIcon, LogOut } from "lucide-react";
 import { useAppStore } from "@/hooks/useAppStore";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 export const AppLayout = ({ children }: { children: ReactNode }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -136,6 +138,19 @@ export const AppLayout = ({ children }: { children: ReactNode }) => {
                 <p className="font-bold leading-tight truncate max-w-[100px]">{settings.workshopName}</p>
                 <p className="text-[9px] uppercase font-bold text-muted-foreground tracking-widest">Admin</p>
               </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="ml-2 hover:bg-destructive/10 hover:text-destructive group"
+                onClick={async () => {
+                  await useAppStore.getState().signOut();
+                  toast.success("Berhasil keluar");
+                  navigate("/login");
+                }}
+                title="Keluar"
+              >
+                <LogOut className="w-4 h-4 text-muted-foreground group-hover:text-destructive transition-colors" />
+              </Button>
             </div>
           </div>
         </header>

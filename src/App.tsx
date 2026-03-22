@@ -17,38 +17,62 @@ import Finance from "./pages/Finance";
 import Expenses from "./pages/Expenses";
 import Notifications from "./pages/Notifications";
 import Packages from "./pages/Packages";
+import Login from "./pages/Login";
 import { CommandPalette } from "./components/ui/CommandPalette";
+import { Navigate } from "react-router-dom";
 
 import { ThemeProvider } from "next-themes";
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <CommandPalette />          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/orders" element={<ServiceOrders />} />
-            <Route path="/vehicles" element={<Vehicles />} />
-            <Route path="/inventory" element={<InventoryPage />} />
-            <Route path="/customers" element={<Customers />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/mechanics" element={<Mechanics />} />
-            <Route path="/pos" element={<POS />} />
-            <Route path="/analytics" element={<Analytics />} />
-            <Route path="/finance" element={<Finance />} />
-            <Route path="/expenses" element={<Expenses />} />
-            <Route path="/notifications" element={<Notifications />} />
-            <Route path="/packages" element={<Packages />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </ThemeProvider>
-  </QueryClientProvider>
-);
+import { useEffect } from "react";
+import { useAppStore } from "@/hooks/useAppStore";
+
+const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+  const session = useAppStore((state) => state.session);
+  if (!session) {
+    return <Navigate to="/login" replace />;
+  }
+  return <>{children}</>;
+};
+
+const App = () => {
+  const initializeSupabase = useAppStore((state) => state.initializeSupabase);
+
+  useEffect(() => {
+    initializeSupabase();
+  }, [initializeSupabase]);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <CommandPalette />
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+              <Route path="/orders" element={<ProtectedRoute><ServiceOrders /></ProtectedRoute>} />
+              <Route path="/vehicles" element={<ProtectedRoute><Vehicles /></ProtectedRoute>} />
+              <Route path="/inventory" element={<ProtectedRoute><InventoryPage /></ProtectedRoute>} />
+              <Route path="/customers" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
+              <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+              <Route path="/mechanics" element={<ProtectedRoute><Mechanics /></ProtectedRoute>} />
+              <Route path="/pos" element={<ProtectedRoute><POS /></ProtectedRoute>} />
+              <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
+              <Route path="/finance" element={<ProtectedRoute><Finance /></ProtectedRoute>} />
+              <Route path="/expenses" element={<ProtectedRoute><Expenses /></ProtectedRoute>} />
+              <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+              <Route path="/packages" element={<ProtectedRoute><Packages /></ProtectedRoute>} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
+  );
+};
+
 
 export default App;
