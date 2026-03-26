@@ -5,7 +5,7 @@ import { Package, Star, ShoppingCart, CheckCircle2, Plus, Trash2, Edit2, X } fro
 import { useState } from "react";
 import { formatCurrency, type ServicePackage, type ServicePackageItem } from "@/lib/mock-data";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, formatNumberWithDots, parseNumberFromDots } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
@@ -70,7 +70,16 @@ const NewPackageModal = ({ open, onClose, editingPackage }: { open: boolean; onC
             </div>
             <div>
               <label className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-1.5 block">Biaya Jasa Mekanik (Rp)</label>
-              <input type="number" value={laborCost} onChange={e => setLaborCost(Number(e.target.value))} className="w-full px-3 py-2 rounded-lg bg-secondary/30 border border-border/50 text-sm font-mono outline-none focus:ring-2 focus:ring-primary/20" />
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">Rp</span>
+                <input 
+                  type="text" 
+                  value={formatNumberWithDots(laborCost)} 
+                  onChange={e => setLaborCost(parseNumberFromDots(e.target.value))} 
+                  placeholder="0"
+                  className="w-full pl-9 pr-3 py-2 rounded-lg bg-secondary/30 border border-border/50 text-sm font-mono outline-none focus:ring-2 focus:ring-primary/20" 
+                />
+              </div>
             </div>
           </div>
 

@@ -4,7 +4,7 @@ import { formatCurrency, type ServiceOrder, type ServiceStatus, defaultSettings 
 import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Clock, Wrench, CheckCircle2, CreditCard, X, ChevronRight, Download, MessageSquare, History, Search, MapPin, Phone, Calendar, User, AlertCircle, TrendingUp, Trash2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatNumberWithDots, parseNumberFromDots } from "@/lib/utils";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
@@ -604,6 +604,7 @@ const NewOrderModal = ({ open, onClose }: { open: boolean; onClose: () => void }
       status: "queued",
       vehicleId: vehicle.id,
       vehicle,
+      customerId: vehicle.customerId,
       customer: customers.find(c => c.id === vehicle.customerId)!,
       mechanicId: mechanic.id,
       mechanic,
@@ -738,12 +739,16 @@ const NewOrderModal = ({ open, onClose }: { open: boolean; onClose: () => void }
 
           <div>
             <label className="text-sm text-muted-foreground mb-1.5 block">Estimasi Biaya Jasa (Rp)</label>
-            <input 
-              type="number" 
-              value={laborCost} 
-              onChange={e => setLaborCost(Number(e.target.value))}
-              className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border/50 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">Rp</span>
+              <input 
+                type="text" 
+                value={formatNumberWithDots(laborCost)} 
+                onChange={e => setLaborCost(parseNumberFromDots(e.target.value))}
+                placeholder="0"
+                className="w-full pl-11 pr-3 py-2 rounded-lg bg-secondary/50 border border-border/50 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
           </div>
         </div>
 

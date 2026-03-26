@@ -5,7 +5,7 @@ import { formatCurrency, type InventoryItem, type Transaction } from "@/lib/mock
 import { useState } from "react";
 import { ShoppingCart, Plus, Minus, Trash2, CreditCard, Banknote, QrCode, CheckCircle2, Download, Coins } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { cn } from "@/lib/utils";
+import { cn, formatNumberWithDots, parseNumberFromDots } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface CartItem extends InventoryItem {
@@ -266,14 +266,17 @@ const CheckoutModal = ({ open, onClose, onConfirm, total, method }: {
             <>
               <div>
                 <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-2 block">Uang Diterima</label>
-                <input 
-                  type="number"
-                  value={amountPaid || ""}
-                  onChange={e => setAmountPaid(Number(e.target.value))}
-                  className="w-full px-4 py-3 rounded-xl bg-secondary/30 border border-border/50 text-2xl font-mono font-bold text-center focus:outline-none focus:ring-2 focus:ring-primary/30"
-                  placeholder="0"
-                  autoFocus
-                />
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-bold text-muted-foreground/30">Rp</span>
+                  <input 
+                    type="text"
+                    value={formatNumberWithDots(amountPaid)}
+                    onChange={e => setAmountPaid(parseNumberFromDots(e.target.value))}
+                    className="w-full pl-12 pr-4 py-3 rounded-xl bg-secondary/30 border border-border/50 text-2xl font-mono font-bold text-center focus:outline-none focus:ring-2 focus:ring-primary/30"
+                    placeholder="0"
+                    autoFocus
+                  />
+                </div>
               </div>
               
               <div className="flex gap-2">
@@ -633,13 +636,16 @@ const POSPage = () => {
             <div className="border-t border-border/30 pt-6 space-y-3 text-sm">
               <div className="flex items-center justify-between text-muted-foreground">
                 <span>Biaya Jasa</span>
-                <input 
-                  type="number"
-                  value={laborCost || ""}
-                  onChange={e => setLaborCost(Number(e.target.value))}
-                  className="w-32 text-right bg-secondary/30 border border-border/50 rounded-lg px-2 py-1.5 font-mono text-xs focus:ring-1 focus:ring-primary/30 outline-none"
-                  placeholder="0"
-                />
+                <div className="relative">
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-muted-foreground/50">Rp</span>
+                  <input 
+                    type="text"
+                    value={formatNumberWithDots(laborCost)}
+                    onChange={e => setLaborCost(parseNumberFromDots(e.target.value))}
+                    className="w-32 text-right bg-secondary/30 border border-border/50 rounded-lg pl-7 pr-2 py-1.5 font-mono text-xs focus:ring-1 focus:ring-primary/30 outline-none"
+                    placeholder="0"
+                  />
+                </div>
               </div>
               <div className="flex items-center justify-between font-medium">
                 <span>Subtotal</span>
@@ -663,13 +669,16 @@ const POSPage = () => {
               <div className="flex flex-col gap-2 pt-2">
                 <div className="flex items-center justify-between text-muted-foreground text-xs">
                   <span>Diskon (Rp)</span>
-                  <input 
-                    type="number" 
-                    value={discount || ""} 
-                    onChange={e => setDiscount(Number(e.target.value))}
-                    className="w-24 text-right bg-secondary/30 border border-border/50 rounded px-2 py-1 font-mono text-xs focus:ring-1 focus:ring-primary/30 outline-none"
-                    placeholder="0"
-                  />
+                  <div className="relative">
+                    <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] font-bold text-muted-foreground/50">Rp</span>
+                    <input 
+                      type="text" 
+                      value={formatNumberWithDots(discount)} 
+                      onChange={e => setDiscount(parseNumberFromDots(e.target.value))}
+                      className="w-32 text-right bg-secondary/30 border border-border/50 rounded-lg pl-7 pr-2 py-1 font-mono text-xs focus:ring-1 focus:ring-primary/30 outline-none"
+                      placeholder="0"
+                    />
+                  </div>
                 </div>
               </div>
               <div className="flex items-center justify-between pt-4 border-t border-border/30">

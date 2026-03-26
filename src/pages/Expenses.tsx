@@ -6,7 +6,7 @@ import { formatCurrency } from "@/lib/mock-data";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useMemo } from "react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, formatNumberWithDots, parseNumberFromDots } from "@/lib/utils";
 
 const ExpensesPage = () => {
   const { expenses, addExpense, deleteExpense } = useAppStore();
@@ -194,12 +194,16 @@ const ExpensesPage = () => {
                 </div>
                 <div>
                   <label className="text-[10px] uppercase font-bold text-muted-foreground ml-1 mb-1 block">Nominal (Rp)</label>
-                  <input 
-                    type="number"
-                    value={amount}
-                    onChange={e => setAmount(Number(e.target.value))}
-                    className="w-full px-4 py-3 rounded-xl bg-secondary/30 border border-border/30 focus:outline-none focus:ring-2 focus:ring-primary/20 font-mono font-bold"
-                  />
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">Rp</span>
+                    <input 
+                      type="text"
+                      value={formatNumberWithDots(amount)}
+                      onChange={e => setAmount(parseNumberFromDots(e.target.value))}
+                      placeholder="0"
+                      className="w-full pl-11 pr-4 py-3 rounded-xl bg-secondary/30 border border-border/30 focus:outline-none focus:ring-2 focus:ring-primary/20 font-mono font-bold"
+                    />
+                  </div>
                 </div>
                 <button 
                   onClick={handleAdd}

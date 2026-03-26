@@ -6,7 +6,7 @@ import { Package, AlertTriangle, Plus, X, History, ArrowDown, ArrowUp, Pencil, T
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useMemo, useEffect } from "react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, formatNumberWithDots, parseNumberFromDots } from "@/lib/utils";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { exportCSV } from "@/lib/exportCSV";
 
@@ -162,13 +162,29 @@ const AddPartModal = ({ open, onClose }: { open: boolean; onClose: () => void })
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-sm text-muted-foreground mb-1.5 block">Harga Modal (HPP)</label>
-              <input type="number" value={costPrice} onChange={e => setCostPrice(Number(e.target.value))}
-                className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border/50 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/20" />
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-muted-foreground">Rp</span>
+                <input 
+                  type="text" 
+                  value={formatNumberWithDots(costPrice)} 
+                  onChange={e => setCostPrice(parseNumberFromDots(e.target.value))}
+                  placeholder="0"
+                  className="w-full pl-8 pr-3 py-2 rounded-lg bg-secondary/50 border border-border/50 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/20" 
+                />
+              </div>
             </div>
             <div>
               <label className="text-sm text-muted-foreground mb-1.5 block">Harga Jual (Retail)</label>
-              <input type="number" value={price} onChange={e => setPrice(Number(e.target.value))}
-                className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border/50 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/20" />
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-muted-foreground">Rp</span>
+                <input 
+                  type="text" 
+                  value={formatNumberWithDots(price)} 
+                  onChange={e => setPrice(parseNumberFromDots(e.target.value))}
+                  placeholder="0"
+                  className="w-full pl-8 pr-3 py-2 rounded-lg bg-secondary/50 border border-border/50 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/20" 
+                />
+              </div>
             </div>
           </div>
           <div>
@@ -442,11 +458,27 @@ const InventoryPage = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-[10px] uppercase font-bold text-muted-foreground mb-1 block">HPP</label>
-                  <input type="number" value={editCostPrice} onChange={e => setEditCostPrice(Number(e.target.value))} className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border/50 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/20" />
+                  <div className="relative">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-muted-foreground">Rp</span>
+                    <input 
+                      type="text" 
+                      value={formatNumberWithDots(editCostPrice)} 
+                      onChange={e => setEditCostPrice(parseNumberFromDots(e.target.value))} 
+                      className="w-full pl-7 pr-3 py-2 rounded-lg bg-secondary/50 border border-border/50 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/20" 
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className="text-[10px] uppercase font-bold text-muted-foreground mb-1 block">Harga Jual</label>
-                  <input type="number" value={editPrice} onChange={e => setEditPrice(Number(e.target.value))} className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border/50 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/20" />
+                  <div className="relative">
+                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-muted-foreground">Rp</span>
+                    <input 
+                      type="text" 
+                      value={formatNumberWithDots(editPrice)} 
+                      onChange={e => setEditPrice(parseNumberFromDots(e.target.value))} 
+                      className="w-full pl-7 pr-3 py-2 rounded-lg bg-secondary/50 border border-border/50 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-primary/20" 
+                    />
+                  </div>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
