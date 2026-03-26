@@ -9,6 +9,7 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "rec
 import { motion, AnimatePresence } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 const statusColors: Record<string, string> = {
   queued: "bg-warning/15 text-warning",
@@ -452,7 +453,7 @@ const Dashboard = () => {
                 </p>
                 <div className="space-y-2">
                   {mechanics.length > 0 ? mechanics.slice(0, 4).map((m, i) => {
-                    const mOrders = serviceOrders.filter(o => o.mechanic.id === m.id && o.status === 'paid');
+                    const mOrders = serviceOrders.filter(o => o.mechanicId === m.id && o.status === 'paid');
                     return (
                       <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-primary/5 border border-primary/10">
                         <div className="flex items-center gap-3">
@@ -705,7 +706,7 @@ const Dashboard = () => {
             <>
               <div className="space-y-6">
                 {mechanics.map((m, i) => {
-                  const activeJobs = serviceOrders.filter(o => o.mechanic.id === m.id && o.status === "in_progress").length;
+                  const activeJobs = serviceOrders.filter(o => o.mechanicId === m.id && o.status === "in_progress").length;
                   const loadPercentage = Math.min(100, (activeJobs / 3) * 100);
                   return (
                     <div key={m.id} className="space-y-2 group">

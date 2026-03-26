@@ -212,7 +212,7 @@ const MechanicFormModal = ({
 // F3: Mechanic Efficiency Leaderboard calculation
 function MechanicLeaderboard({ mechanics, orders }: { mechanics: Mechanic[], orders: ServiceOrder[] }) {
   const stats = mechanics.map(m => {
-    const mOrders = orders.filter(o => o.mechanic.id === m.id && (o.status === 'completed' || o.status === 'paid') && o.startedAt && o.completedAt);
+    const mOrders = orders.filter(o => o.mechanicId === m.id && (o.status === 'completed' || o.status === 'paid') && o.startedAt && o.completedAt);
     if (mOrders.length === 0) return { ...m, avgTimeMs: Infinity, jobsCount: 0 };
     
     let totalMs = 0;
@@ -371,7 +371,7 @@ const MechanicsPage = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {mechanics.map((m, i) => {
-          const mechanicOrders = serviceOrders.filter(o => o.mechanic.id === m.id);
+          const mechanicOrders = serviceOrders.filter(o => o.mechanicId === m.id);
           const activeJobsCount = mechanicOrders.filter(o => o.status === "in_progress").length;
           
           const mechanicPayouts = payouts.filter(p => p.mechanicId === m.id);
@@ -489,7 +489,7 @@ const MechanicsPage = () => {
         {selectedMechanic && (
           <MechanicHistoryModal 
             mechanic={selectedMechanic}
-            orders={serviceOrders.filter(o => o.mechanic.id === selectedMechanic.id)}
+            orders={serviceOrders.filter(o => o.mechanicId === selectedMechanic.id)}
             payouts={payouts.filter(p => p.mechanicId === selectedMechanic.id)}
             open={!!selectedMechanic}
             onClose={() => setSelectedMechanic(null)}

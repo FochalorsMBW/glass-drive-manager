@@ -173,67 +173,96 @@ export const useAppStore = create<AppState>()(
         if (!session) return; // Don't fetch data if not logged in
 
         try {
-          const { data: inv } = await supabase.from('inventory').select('*');
-          const { data: cust } = await supabase.from('customers').select('*');
-          const { data: veh } = await supabase.from('vehicles').select('*');
-          const { data: mech } = await supabase.from('mechanics').select('*');
-          const { data: orders } = await supabase.from('service_orders').select('*');
-          const { data: setts } = await supabase.from('workshop_settings').select('*').single();
+          const [
+            { data: inv },
+            { data: cust },
+            { data: veh },
+            { data: mech },
+            { data: orders },
+            { data: setts }
+          ] = await Promise.all([
+            supabase.from('inventory').select('*'),
+            supabase.from('customers').select('*'),
+            supabase.from('vehicles').select('*'),
+            supabase.from('mechanics').select('*'),
+            supabase.from('service_orders').select('*'),
+            supabase.from('workshop_settings').select('*')
+          ]);
 
-          if (inv && inv.length > 0) set({ inventory: inv.map((item: any) => ({
+          const mappedInventory = (inv || []).map((item: any) => ({
             ...item,
             minThreshold: item.min_threshold,
             costPrice: item.cost_price
-          }))});
+          }));
 
-          if (cust && cust.length > 0) set({ customers: cust.map((item: any) => ({
+          const mappedCustomers = (cust || []).map((item: any) => ({
             ...item,
             lastVisit: item.last_visit,
             nextServiceDate: item.next_service_date
-          }))});
+          }));
 
-          if (veh && veh.length > 0) set({ vehicles: veh.map((item: any) => ({
+          const mappedVehicles = (veh || []).map((item: any) => ({
             ...item,
             plateNumber: item.plate_number,
             engineNumber: item.engine_number,
             customerId: item.customer_id
-          }))});
+          }));
 
-          if (mech && mech.length > 0) set({ mechanics: mech.map((item: any) => ({
+          const mappedMechanics = (mech || []).map((item: any) => ({
             ...item,
             activeJobs: item.active_jobs,
             completedJobs: item.completed_jobs,
             totalCommissionPaid: item.total_commission_paid,
             lastPayoutDate: item.last_payout_date
-          }))});
+          }));
 
-          if (orders && orders.length > 0) set({ serviceOrders: orders.map((o: any) => ({
-            ...o,
-            vehicleId: o.vehicle_id,
-            customerId: o.customer_id,
-            mechanicId: o.mechanic_id,
-            laborCost: o.labor_cost,
-            totalAmount: o.total_amount,
-            packageId: o.package_id,
-            startedAt: o.started_at,
-            completedAt: o.completed_at,
-            createdAt: o.created_at
-          }))});
+          const mappedOrders = (orders || []).map((o: any) => {
+            const vehicle = mappedVehicles.find(v => v.id === o.vehicle_id);
+            const customer = mappedCustomers.find(c => c.id === o.customer_id);
+            const mechanic = mappedMechanics.find(m => m.id === o.mechanic_id);
 
-          if (setts) set({ settings: {
-            workshopName: setts.workshop_name,
-            workshopAddress: setts.workshop_address,
-            workshopPhone: setts.workshop_phone,
-            workshopLogo: setts.workshop_logo,
-            currency: setts.currency,
-            taxRate: setts.tax_rate,
-            commissionRate: setts.commission_rate,
-            invoiceTerms: setts.invoice_terms,
-            waGatewayUrl: setts.wa_gateway_url,
-            waApiKey: setts.wa_api_key
-          }});
+            return {
+              ...o,
+              vehicleId: o.vehicle_id,
+              customerId: o.customer_id,
+              mechanicId: o.mechanic_id,
+              laborCost: o.labor_cost,
+              totalAmount: o.total_amount,
+              packageId: o.package_id,
+              startedAt: o.started_at,
+              completedAt: o.completed_at,
+              createdAt: o.created_at,
+              vehicle: vehicle || {},
+              customer: customer || {},
+              mechanic: mechanic || {}
+            };
+          });
+
+          set({
+            inventory: mappedInventory,
+            customers: mappedCustomers,
+            vehicles: mappedVehicles,
+            mechanics: mappedMechanics,
+            serviceOrders: mappedOrders
+          });
+
+          if (setts && setts.length > 0) {
+            const s = setts[0];
+            set({ settings: {
+              workshopName: s.workshop_name,
+              workshopAddress: s.workshop_address,
+              workshopPhone: s.workshop_phone,
+              workshopLogo: s.workshop_logo,
+              currency: s.currency,
+              taxRate: s.tax_rate,
+              commissionRate: s.commission_rate,
+              invoiceTerms: s.invoice_terms,
+              waGatewayUrl: s.wa_gateway_url,
+              waApiKey: s.wa_api_key
+            }});
+          }
           
-          console.log("Supabase data synced and mapped successfully.");
+          console.log("Supabase data synced and enriched successfully.");
         } catch (error) {
           console.error("Error initializing Supabase:", error);
         }
@@ -844,7 +873,7 @@ export const useAppStore = create<AppState>()(
         set((state) => ({
           customers: state.customers.filter(c => c.id !== id),
           vehicles: state.vehicles.filter(v => v.customerId !== id),
-          serviceOrders: state.serviceOrders.filter(o => o.customer.id !== id),
+          serviceOrders: state.serviceOrders.filter(o => o.customerId !== id),
           activities: [{
             id: Date.now().toString(),
             type: 'customer',
@@ -877,7 +906,7 @@ export const useAppStore = create<AppState>()(
       deleteVehicle: async (id) => {
         set((state) => ({
           vehicles: state.vehicles.filter(v => v.id !== id),
-          serviceOrders: state.serviceOrders.filter(o => o.vehicle.id !== id),
+          serviceOrders: state.serviceOrders.filter(o => o.vehicleId !== id),
           activities: [{
             id: Date.now().toString(),
             type: 'customer',

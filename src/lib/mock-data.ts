@@ -126,6 +126,7 @@ export interface ServiceOrder {
   id: string;
   vehicleId: string;
   vehicle: Vehicle;
+  customerId: string;
   customer: Customer;
   mechanicId: string;
   mechanic: Mechanic;

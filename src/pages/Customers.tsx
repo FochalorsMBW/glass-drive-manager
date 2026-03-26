@@ -125,7 +125,7 @@ const CustomerDetailsModal = ({ open, onClose, customer }: { open: boolean; onCl
   if (!open || !customer) return null;
 
   const ownedVehicles = vehicles.filter(v => v.customerId === customer.id);
-  const history = serviceOrders.filter(o => o.customer?.id === customer.id || o.vehicle.customerId === customer.id);
+  const history = serviceOrders.filter(o => o.customerId === customer.id || o.vehicle?.customerId === customer.id);
 
   // C3: Customer Insights
   const totalSpend = history.filter(o => o.status === 'paid').reduce((sum, o) => sum + o.totalAmount, 0);

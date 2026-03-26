@@ -112,7 +112,7 @@ const AnalyticsPage = () => {
 
     // --- Mechanic Leaderboard ---
     const leaderboard = mechanics.map(m => {
-      const mOrders = fOrders.filter(o => o.mechanic.id === m.id);
+      const mOrders = fOrders.filter(o => o.mechanicId === m.id);
       const mRevenue = mOrders.reduce((sum, o) => sum + o.totalAmount, 0);
       return { ...m, revenue: mRevenue, jobs: mOrders.length };
     }).sort((a, b) => b.revenue - a.revenue);
