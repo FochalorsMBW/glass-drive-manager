@@ -72,6 +72,7 @@ export interface Customer {
   loyaltyPoints?: number; // Legacy field, use 'points' instead
   lastVisit?: string;
   nextServiceDate?: string;
+  isWorkshop?: boolean;
 }
 
 export interface Mechanic {

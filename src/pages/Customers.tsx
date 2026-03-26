@@ -16,6 +16,7 @@ const AddCustomerModal = ({ open, onClose }: { open: boolean; onClose: () => voi
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
+  const [isWorkshop, setIsWorkshop] = useState(false);
 
   const handleSubmit = () => {
     if (!name.trim()) { toast.error("Nama pelanggan harus diisi"); return; }
@@ -34,6 +35,7 @@ const AddCustomerModal = ({ open, onClose }: { open: boolean; onClose: () => voi
       email,
       address,
       points: 0,
+      isWorkshop,
     });
     toast.success(`Pelanggan ${name} berhasil ditambahkan`);
     setName(""); setPhone(""); setEmail(""); setAddress("");
@@ -97,6 +99,15 @@ const AddCustomerModal = ({ open, onClose }: { open: boolean; onClose: () => voi
             <input value={address} onChange={e => setAddress(e.target.value)} placeholder="Jl. Merdeka No. 10, Jakarta"
               className="w-full px-3 py-2 rounded-lg bg-secondary/50 border border-border/50 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20" />
           </div>
+          <div className="flex items-center gap-3 p-3 rounded-xl bg-primary/5 border border-primary/10 transition-all cursor-pointer hover:bg-primary/10" onClick={() => setIsWorkshop(!isWorkshop)}>
+            <div className={cn("w-10 h-5 rounded-full relative transition-colors duration-300", isWorkshop ? "bg-primary" : "bg-secondary")}>
+              <div className={cn("absolute top-1 w-3 h-3 bg-white rounded-full transition-all duration-300", isWorkshop ? "left-6" : "left-1")} />
+            </div>
+            <div className="flex-1">
+              <p className="text-xs font-bold">Pelanggan Bengkel / Reseller</p>
+              <p className="text-[10px] text-muted-foreground">Aktifkan untuk mengizinkan input harga manual di POS.</p>
+            </div>
+          </div>
         </div>
 
         <div className="flex gap-3 mt-6">
@@ -119,6 +130,7 @@ const CustomerDetailsModal = ({ open, onClose, customer }: { open: boolean; onCl
   const [editPhone, setEditPhone] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [editAddress, setEditAddress] = useState("");
+  const [editIsWorkshop, setEditIsWorkshop] = useState(false);
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -136,12 +148,13 @@ const CustomerDetailsModal = ({ open, onClose, customer }: { open: boolean; onCl
     setEditPhone(customer.phone);
     setEditEmail(customer.email || "");
     setEditAddress(customer.address || "");
+    setEditIsWorkshop(customer.isWorkshop || false);
     setIsEditing(true);
   };
 
   const saveEdit = () => {
     if (!editName.trim()) { toast.error("Nama harus diisi"); return; }
-    updateCustomer({ ...customer, name: editName, phone: editPhone, email: editEmail, address: editAddress });
+    updateCustomer({ ...customer, name: editName, phone: editPhone, email: editEmail, address: editAddress, isWorkshop: editIsWorkshop });
     toast.success("Data pelanggan berhasil diubah");
     setIsEditing(false);
   };

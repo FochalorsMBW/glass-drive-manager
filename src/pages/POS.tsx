@@ -382,6 +382,10 @@ const POSPage = () => {
     });
   };
 
+  const updatePrice = (id: string, newPrice: number) => {
+    setCart(prev => prev.map(c => c.id === id ? { ...c, price: newPrice } : c));
+  };
+
   const taxRate = settings.taxRate || 0;
   const itemsSubtotal = cart.reduce((sum, c) => sum + c.price * c.qty, 0);
   const subtotal = itemsSubtotal + laborCost;
@@ -608,7 +612,20 @@ const POSPage = () => {
                   >
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{item.name}</p>
-                      <p className="text-xs font-mono text-muted-foreground">{formatCurrency(item.price)}</p>
+                      {selectedCustomer?.isWorkshop ? (
+                        <div className="flex items-center gap-1 mt-1">
+                          <span className="text-[10px] font-bold text-primary">Rp</span>
+                          <input 
+                            type="text"
+                            value={formatNumberWithDots(item.price)}
+                            onChange={e => updatePrice(item.id, parseNumberFromDots(e.target.value))}
+                            className="w-24 bg-primary/10 border-b border-primary/30 text-xs font-mono font-bold text-primary focus:outline-none focus:border-primary px-1"
+                          />
+                          <span className="text-[9px] text-muted-foreground uppercase font-bold ml-1">(Harga Bengkel)</span>
+                        </div>
+                      ) : (
+                        <p className="text-xs font-mono text-muted-foreground">{formatCurrency(item.price)}</p>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <button onClick={() => updateQty(item.id, -1)} className="w-6 h-6 flex items-center justify-center rounded-full bg-secondary hover:bg-accent transition-snappy transition-colors">
